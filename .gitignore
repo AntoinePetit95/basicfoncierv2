@@ -1,0 +1,49 @@
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+sdist/
+wheels/
+*.egg-info/
+*.egg
+.eggs/
+
+# Environnements virtuels
+.venv/
+venv/
+env/
+
+# Outils
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IDE
+.idea/
+.vscode/
+
+# Secrets et environnement
+.env
+*.pem
+*.key
+
+# Données — aucune donnée cadastrale réelle dans le dépôt
+*.csv
+*.parquet
+*.xlsx
+*.gpkg
+*.shp
+
+# Système
+.DS_Store
+Thumbs.db
+
+# Local à la machine, non partagé
+.claude/settings.local.json
