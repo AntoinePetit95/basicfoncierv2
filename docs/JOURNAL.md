@@ -13,13 +13,14 @@
 Trois défauts de contrat d'appel corrigés au passage : une colonne `object` contenant des entiers était acceptée, une colonne de booléens passait pour numérique, et un `numpy.int64` était refusé comme superficie. Le code mort `decomposition_arrow.decomposer` est supprimé.
 
 **Fichiers :** `basicfoncierv2/{ref_cadastrale,superficie,commune}.py`, `basicfoncierv2/_internal/{appel,insee,motifs,unites,commune_arrow,decomposition_arrow,composition_arrow}.py`, `tests/test_{ref_cadastrale,superficie,commune}.py`, `.github/workflows/tests.yml`, `CLAUDE.md`, `docs/{BUGS,DECISIONS,MIGRATION}.md`
-**Vérifié par :** `pytest` → 471 passed (344 avant) ; `ruff check .` → All checks passed ; `ruff format --check .` → clean ; `python -m benchmarks` → décomposition **x6,2**, lecture ha a ca **x1,7**, écriture **x2,4**, hectares **x26,7**, commune et arrondissement **x4,7** — aucune régression.
+**Vérifié par :** `pytest` → 454 passed (344 avant) ; `ruff check .` → All checks passed ; `ruff format --check .` → clean ; CI verte sur les six combinaisons de la matrice ; `python -m benchmarks` → décomposition **x6,2**, lecture ha a ca **x1,7**, écriture **x2,4**, hectares **x26,7**, commune et arrondissement **x4,7** — aucune régression.
 **À savoir :**
 - Les quatre premiers défauts avaient la même forme : **le chemin scalaire et le chemin colonne ne se comportaient pas pareil**. Mes tests validaient chaque chemin séparément, jamais leur accord. Les nouveaux tests confrontent systématiquement les deux.
 - Le défaut multi-chunk ne se déclenchait qu'en présence d'au moins une valeur empruntant le chemin lent : un plantage dépendant des données, que des tests sur colonnes courtes et homogènes ne pouvaient pas atteindre.
 - `ruff` a rattrapé une faute de ma part : un test que je venais d'écrire portait le nom d'un test existant et le masquait — `pytest` restait vert en en collectant un de moins. `F811`, sans quoi je ne l'aurais pas vu.
 - Le contrôle du contenu des colonnes `object` coûte 13 ms par million de lignes, mesuré, contre 500 ms pour l'opération complète.
-- La CI se contentait d'afficher les versions installées : elle vérifie maintenant que l'épinglage a tenu, et échoue sinon. Une matrice de six combinaisons pouvait sans cela tester six fois la même.
+- La CI se contentait d'afficher les versions installées : elle vérifie maintenant que l'épinglage a tenu, et échoue sinon. Une matrice de six combinaisons pouvait sans cela tester six fois la même. Le job plancher confirme `pandas 2.1.4 / pyarrow 15.0.2 / numpy 1.26.4`.
+- **Le message du commit `de42ac1` annonce 471 tests : c'est faux, il y en a 454.** J'avais tronqué la sortie de `pytest` avant sa ligne de résumé et avancé un chiffre que je n'avais pas lu. C'est la comparaison avec le décompte de la CI qui l'a révélé. Le chiffre ci-dessus est le bon.
 
 ## 2026-08-09 — Module des communes, parité complète avec le v1
 
