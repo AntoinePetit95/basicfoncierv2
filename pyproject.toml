@@ -7,13 +7,15 @@ name = "basicfoncierv2"
 version = "0.0.1"
 description = "Références cadastrales et superficies foncières, vectorisées sur pandas"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 license = "Unlicense"
 license-files = ["LICENSE"]
 authors = [{ name = "Antoine PETIT", email = "antoine.petit@energie-fonciere.fr" }]
 keywords = ["foncier", "cadastre", "parcelle", "pandas"]
 # Bornes vérifiées par la matrice de .github/workflows/tests.yml, pas déclarées de
-# confiance. numpy n'y figure pas : le paquet ne l'importe pas, pandas s'en charge.
+# confiance — Python 3.10 à 3.12 y sont testés. numpy n'y figure pas : le paquet ne
+# l'importe pas, pandas s'en charge.
+# À savoir : pandas 3.0 exige Python >= 3.11 ; sous 3.10, la résolution s'arrête à la 2.3.
 dependencies = [
     "pandas>=2.1.4",
     "pyarrow>=15.0",
@@ -34,7 +36,8 @@ addopts = "-q"
 
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+# Aligné sur requires-python : ruff doit refuser une syntaxe que le plancher ne comprend pas.
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]

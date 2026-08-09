@@ -1,5 +1,17 @@
 # Journal
 
+## 2026-08-09 — Plancher Python abaissé à 3.10
+
+**Demande :** élargir `requires-python`, en le prouvant plutôt qu'en le déclarant.
+**Fait :**
+- Suite exécutée sur Python 3.10.11 (pandas 2.3.3) et 3.11.9 (pandas 3.0.5) avant toute modification : **473 tests verts sur les deux**. Aucune syntaxe postérieure à 3.10 dans le code.
+- `requires-python = ">=3.10"`, et `target-version = "py310"` côté ruff pour qu'il refuse ce que le plancher ne comprendrait pas.
+- Deux entrées de matrice ajoutées (3.10, 3.11) ; la vérification d'épinglage porte désormais aussi sur la version de Python.
+
+**Fichiers :** `pyproject.toml`, `.github/workflows/tests.yml`, `docs/JOURNAL.md`
+**Vérifié par :** `pytest` → 473 passed sur 3.10, 3.11 et 3.12 ; `ruff check .` → All checks passed après abaissement de la cible.
+**À savoir :** **pandas 3.0 exige Python ≥ 3.11.** Sous 3.10 la résolution s'arrête à pandas 2.3. L'entrée de matrice 3.10 épingle donc pandas 2.3.3 : sans cela, pip part dans une résolution interminable — c'est ce qui a fait expirer ma première tentative d'installation locale, à dix minutes.
+
 ## 2026-08-09 — Arrondissements municipaux de Paris, Lyon et Marseille
 
 **Demande :** traiter un cas particulier jamais implémenté — le code Insee de la commune n'est pas celui que porte la référence cadastrale à Paris, Lyon et Marseille. Sourcer les codes d'arrondissement à l'Insee, et appliquer une conversion asymétrique : concaténation aveugle à la construction, détection de l'arrondissement à la lecture.

@@ -50,13 +50,20 @@ jobs:
             pandas: "3.0.5"
           # Sans épinglage : ce que reçoit une installation neuve aujourd'hui.
           - nom: "dernières versions"
+          # Les deux versions de Python sous le défaut. pandas 3.0 exige Python >= 3.11 :
+          # sans épinglage, l'entrée 3.10 partirait dans une résolution interminable.
+          - nom: "python 3.10 : plancher de requires-python"
+            python: "3.10"
+            pandas: "2.3.3"
+          - nom: "python 3.11"
+            python: "3.11"
     name: ${{ matrix.nom }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python || '3.12' }}
 
       - name: Épingler pandas
         if: matrix.pandas != ''
@@ -76,23 +83,28 @@ jobs:
       # fois la même. Cette étape échoue si l'épinglage n'a pas tenu.
       - name: Vérifier que l'épinglage a tenu
         env:
+          PYTHON_ATTENDU: ${{ matrix.python }}
           PANDAS_ATTENDU: ${{ matrix.pandas }}
           PYARROW_ATTENDU: ${{ matrix.pyarrow }}
         run: |
           python - <<'PY'
           import os
+          import sys
+
           import numpy
           import pandas
           import pyarrow
 
+          python = ".".join(map(str, sys.version_info[:2]))
           print(
-              f"pandas {pandas.__version__} / pyarrow {pyarrow.__version__} "
-              f"/ numpy {numpy.__version__}"
+              f"python {python} / pandas {pandas.__version__} "
+              f"/ pyarrow {pyarrow.__version__} / numpy {numpy.__version__}"
           )
 
           ecarts = [
               f"{nom} : attendu {attendu}, installé {obtenu}"
               for nom, attendu, obtenu in (
+                  ("python", os.environ["PYTHON_ATTENDU"], python),
                   ("pandas", os.environ["PANDAS_ATTENDU"], pandas.__version__),
                   ("pyarrow", os.environ["PYARROW_ATTENDU"], pyarrow.__version__),
               )
