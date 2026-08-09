@@ -12,6 +12,10 @@
 **Retenu :** implémentation native — décomposition des références par regex vectorisée (`.str.extract`), recomposition par `.str.zfill` et concaténation, superficies par arithmétique entière numpy. Chaînes en `string[pyarrow]`. `pyarrow` devient une dépendance d'exécution.
 **Écarté :** numpy pur en dtype `object` (portable et sans dépendance nouvelle, mais les opérations sur chaînes y restent nettement plus lentes qu'en Arrow) ; numba ou Cython (le travail est majoritairement du traitement de chaînes, où ils aident peu, et ils ajoutent une chaîne de compilation à la publication) ; conserver `np.vectorize` (n'attaque pas la cause).
 
+**Mesuré le 2026-08-09, à la première implémentation** (`python -m benchmarks`, 1 million de références) : **x2,1**, et non « un à deux ordres de grandeur » comme annoncé au moment de la décision. Cette prévision était fausse — `np.vectorize` tient 435 000 lignes/s, bien mieux que supposé.
+
+Le profil montre que le coût est intégralement dans les deux passes de `extract_regex` (740 ms sur 1 117 ms). La marge restante est identifiée et chiffrée : sur la forme idu à 14 caractères, la décomposition par découpes fixes coûte 155 ms et sa validation 117 ms, soit environ 290 ms au lieu de 1 117 ms — de l'ordre de x8 contre le v1. La décision reste valide, mais le gain visé ne sera atteint qu'avec ce chemin rapide.
+
 ## 2026-08-09 — Une fonction par concept, acceptant scalaire ou Series
 
 **Contexte :** le v1 impose de choisir entre `basicfoncier.ref_cadastrales.ref_parcelle_to_idu` et `basicfoncier.vectorized_functions.for_pandas.functions.ref_parcelle_to_idu`. Deux chemins d'import pour un même concept, et le second avale silencieusement les erreurs.

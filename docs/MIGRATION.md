@@ -22,7 +22,7 @@
 |---|---|---|
 | `ref_cadastrales.idu_from_parts` | `ref_cadastrale.idu_from_parts` | |
 | `ref_cadastrales.short_id_from_parts` | `ref_cadastrale.short_id_from_parts` | |
-| `ref_cadastrales.ref_parcelle_to_parts` | `ref_cadastrale.to_parts` | ordre de retour figé : `(insee, com_abs, section, numero)` |
+| `ref_cadastrales.ref_parcelle_to_parts` | `ref_cadastrale.to_parts` | **livré.** Ordre figé : `(insee, com_abs, section, numero)`. Voir ci-dessous |
 | `ref_cadastrales.ref_parcelle_to_idu` | `ref_cadastrale.to_idu` | **cassée dans le v1**, voir ci-dessous |
 | `ref_cadastrales.ref_parcelle_to_short_id` | `ref_cadastrale.to_short_id` | **cassée dans le v1**, voir ci-dessous |
 | `vectorized_functions.for_pandas.functions.*` | *(supprimé)* | passer une `Series` à la fonction du même nom |
@@ -51,6 +51,22 @@
 | `utils.string_manipulation.first_car_alpha` | *(supprimé)* | détail d'implémentation, remplacé par une regex |
 | `utils.string_manipulation.first_car_numeric` | *(supprimé)* | idem |
 | `utils.adresse.adresse` | *(à trancher)* | hors périmètre cadastral ; à conserver ou à sortir |
+
+## `to_parts` — la seule fonction livrée à ce jour
+
+```python
+from basicfoncierv2.ref_cadastrale import to_parts
+
+to_parts("78048H11")  # ('78048', '000', '0H', '0011')
+to_parts(df["idu"])  # DataFrame : insee, com_abs, section, numero
+to_parts(df["idu"], invalide="manquant")  # les références illisibles deviennent <NA>
+```
+
+Trois différences à connaître avant de remplacer `ref_parcelle_to_parts` :
+
+1. **Une `Series` en entrée donne un `DataFrame`**, pas un quadruplet de tableaux. L'index est conservé. Pour retrouver la forme du v1 : `parts.insee, parts.com_abs, parts.section, parts.numero`.
+2. **Une référence illisible lève une erreur** par défaut, là où le v1 renvoyait silencieusement `NA`. Passez `invalide="manquant"` pour retrouver l'ancien comportement — mais en le sachant.
+3. **Une colonne numérique est refusée** avec un message explicite : une référence stockée en entier a perdu ses zéros de tête. Le v1 renvoyait `NA` sans rien dire.
 
 ## Avertissement : deux fonctions du v1 sont cassées
 
