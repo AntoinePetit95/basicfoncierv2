@@ -2,6 +2,39 @@
 
 ## Ouverts
 
+### À trancher — quel code Insee pour la commune d'un arrondissement ?
+
+**Ce n'est pas un défaut constaté mais une question métier que le code ne permet pas de trancher.** Le v2 reproduit le v1 en attendant une réponse.
+
+`com_insee_com_arrdt_from_insee` associe à chaque jeu d'arrondissements un code commune, et ces trois codes ne suivent pas la même règle :
+
+| Commune | Code retenu par le v1 | Code Insee réel |
+|---|---|---|
+| Marseille | `13055` | `13055` ✅ |
+| Paris | `75100` | `75056` ❓ |
+| Lyon | `69300` | `69123` ❓ |
+
+Marseille reçoit son code Insee réel, Paris et Lyon reçoivent des codes qui n'existent pas au répertoire Insee. Soit c'est une convention interne EF — auquel cas elle mérite d'être écrite dans `docs/VOCABULAIRE.md` — soit ce sont deux valeurs fausses.
+
+**Contournement en place :** le v2 reprend les trois valeurs telles quelles, dans une table unique (`_internal/insee.py`, `COMMUNES_A_ARRONDISSEMENTS`). Changer une valeur dont dépendent des traitements existants n'est pas une décision d'implémentation. La correction, si elle est décidée, tient en deux caractères modifiés et une mise à jour des tests.
+
+### Hérité de `basicfoncier` v1 — `com_insee_from_code_dep_code_com` tronque l'outre-mer
+
+**Périmètre :** défaut du v1. **Il n'est pas corrigé ici** — le v1 est intouchable (CLAUDE.md §5).
+
+**Symptôme :** la recomposition ramène le code département à deux caractères (`code_dep[:2]`) avant de concaténer. En métropole c'est sans effet ; outre-mer, où le département tient sur trois caractères, il en manque un au résultat.
+
+**Reproduction** (dans le dépôt v1) :
+
+```
+com_insee_from_code_dep_code_com("972", "15")  → "9715"   au lieu de "97215"
+com_insee_from_code_dep_code_com("78", "048")  → "78048"  (correct)
+```
+
+L'aller-retour est donc rompu outre-mer : décomposer `97215` donne `("972", "15")`, que recomposer ne redonne pas `97215`.
+
+**Traitement dans le v2 :** `commune.insee_from_parts` complète le code commune à la largeur que lui laisse le département — 3 caractères en métropole, 2 outre-mer — et valide le résultat. L'aller-retour est testé comme propriété sur tous les territoires.
+
 ### Hérité de `basicfoncier` v1 — `superficie_from_str` se trompe sur les écritures non complétées
 
 **Périmètre :** défaut du v1. **Il n'est pas corrigé ici** — le v1 est intouchable (CLAUDE.md §5). Consigné parce que le v2 réimplémente cette lecture et parce que la migration doit prévenir les utilisateurs.

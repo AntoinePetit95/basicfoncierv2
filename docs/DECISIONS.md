@@ -1,5 +1,17 @@
 # Décisions
 
+## 2026-08-09 — Reprendre telle quelle la table d'arrondissements du v1
+
+**Contexte :** le v1 associe à chaque jeu d'arrondissements municipaux un code commune, et ces codes ne suivent pas la même règle : Marseille reçoit son code Insee réel (13055), Paris et Lyon reçoivent des codes absents du répertoire Insee (75100 et 69300, au lieu de 75056 et 69123).
+
+**Retenu :** reproduire les trois valeurs à l'identique, dans une table unique et nommée, et poser la question dans `docs/BUGS.md`.
+
+**Pourquoi :** ces codes sortent de traitements EF existants. Les « corriger » changerait silencieusement des données produites, sur la seule foi de ma lecture du répertoire Insee — alors qu'il peut s'agir d'une convention interne. Le rôle d'un paquet de migration est de reproduire le comportement connu, pas de le réformer au passage.
+
+**Écarté :** aligner Paris et Lyon sur leurs codes réels (correction plausible, conséquences invérifiables d'ici) ; lever une erreur sur ces deux communes (casserait des traitements qui fonctionnent aujourd'hui).
+
+**Réversibilité :** la table tient dans `_internal/insee.py`. Si la réponse est « ce sont des erreurs », la correction est de deux caractères et d'une mise à jour des cas de test.
+
 ## 2026-08-09 — Lire les superficies par découpe, le motif en secours
 
 **Contexte :** la lecture `ha a ca` était **plus lente que le v1** (x0,6). Le profil désignait un seul coupable : le motif tolérant coûtait 1 103 ms sur 1 254, dont 512 pour les `\s*` qui acceptent les espaces multiples. Cette tolérance est nécessaire — les données du v1 en contiennent — donc la retirer était exclu.

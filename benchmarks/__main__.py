@@ -14,11 +14,12 @@ import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
-from types import ModuleType
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
 
+from basicfoncierv2.commune import to_code_commune, to_commune_et_arrondissement, to_departement
 from basicfoncierv2.ref_cadastrale import to_idu, to_parts, to_short_id
 from basicfoncierv2.superficie import from_ha_a_ca, to_ha_a_ca, to_hectares
 
@@ -60,6 +61,14 @@ def generer_superficies(nombre: int, graine: int = 20260809) -> pd.Series:
 
     generateur = np.random.default_rng(graine)
     return pd.Series(generateur.integers(0, METRES_CARRES_MAXIMUM, nombre))
+
+
+def generer_codes_insee(nombre: int, graine: int = 20260809) -> pd.Series:
+    """Fabrique une colonne de codes Insee de commune, arrondissements compris."""
+    _refuser_nombre_nul(nombre)
+
+    generateur = np.random.default_rng(graine)
+    return pd.Series(generateur.integers(1_000, 95_999, nombre)).astype(str).str.zfill(5)
 
 
 def _refuser_nombre_nul(nombre: int) -> None:
@@ -112,17 +121,32 @@ def comparer(
 # --------------------------------------------------------------------------------------
 
 
-def charger_v1(chemin: Path) -> ModuleType | None:
-    """Importe les fonctions vectorisées de basicfoncier v1, ou None si indisponible."""
+def charger_v1(chemin: Path) -> SimpleNamespace | None:
+    """Importe basicfoncier v1 depuis son dépôt voisin, ou None si indisponible.
+
+    Les fonctions de commune n'y existent qu'en version scalaire : elles sont
+    enveloppées par ``np.vectorize``, ce qu'un utilisateur du v1 doit faire lui-même.
+    """
     if not (chemin / "basicfoncier").is_dir():
         return None
 
     sys.path.insert(0, str(chemin))
     try:
+        from basicfoncier.utils import communes_departements_regions
         from basicfoncier.vectorized_functions.for_pandas import functions
     except ImportError:
         return None
-    return functions
+
+    return SimpleNamespace(
+        vectorisees=functions,
+        departement=np.vectorize(communes_departements_regions.code_dep_from_com_insee, otypes="O"),
+        code_commune=np.vectorize(
+            communes_departements_regions.code_com_from_com_insee, otypes="O"
+        ),
+        arrondissement=np.vectorize(
+            communes_departements_regions.com_insee_com_arrdt_from_insee, otypes=["O", "O"]
+        ),
+    )
 
 
 # --------------------------------------------------------------------------------------
@@ -130,7 +154,7 @@ def charger_v1(chemin: Path) -> ModuleType | None:
 # --------------------------------------------------------------------------------------
 
 
-def mesurer_references(lignes: int, v1: ModuleType | None) -> None:
+def mesurer_references(lignes: int, v1: SimpleNamespace | None) -> None:
     """Compare les conversions de référence cadastrale."""
     refs = generer_references(lignes)
     brutes = refs.to_numpy(dtype=object)
@@ -140,7 +164,7 @@ def mesurer_references(lignes: int, v1: ModuleType | None) -> None:
         "décomposition",
         lignes,
         lambda: to_parts(refs),
-        None if v1 is None else lambda: v1.ref_parcelle_to_parts(brutes),
+        None if v1 is None else lambda: v1.vectorisees.ref_parcelle_to_parts(brutes),
     )
     rapporter("v2  forme idu", lignes, mesurer(lambda: to_idu(refs)))
     rapporter("v2  identifiant court", lignes, mesurer(lambda: to_short_id(refs)))
@@ -150,7 +174,7 @@ def mesurer_references(lignes: int, v1: ModuleType | None) -> None:
     )
 
 
-def mesurer_superficies(lignes: int, v1: ModuleType | None) -> None:
+def mesurer_superficies(lignes: int, v1: SimpleNamespace | None) -> None:
     """Compare les conversions de superficie."""
     metres_carres = generer_superficies(lignes)
     brutes = metres_carres.to_numpy(dtype=object)
@@ -162,19 +186,45 @@ def mesurer_superficies(lignes: int, v1: ModuleType | None) -> None:
         "écriture ha a ca",
         lignes,
         lambda: to_ha_a_ca(metres_carres),
-        None if v1 is None else lambda: v1.superficie_ha_a_ca(brutes),
+        None if v1 is None else lambda: v1.vectorisees.superficie_ha_a_ca(brutes),
     )
     comparer(
         "lecture ha a ca",
         lignes,
         lambda: from_ha_a_ca(ecrites),
-        None if v1 is None else lambda: v1.superficie_from_str(ecrites_brutes),
+        None if v1 is None else lambda: v1.vectorisees.superficie_from_str(ecrites_brutes),
     )
     comparer(
         "hectares",
         lignes,
         lambda: to_hectares(metres_carres),
-        None if v1 is None else lambda: v1.superficie_ha(brutes),
+        None if v1 is None else lambda: v1.vectorisees.superficie_ha(brutes),
+    )
+
+
+def mesurer_communes(lignes: int, v1: SimpleNamespace | None) -> None:
+    """Compare les conversions de code Insee de commune."""
+    codes = generer_codes_insee(lignes)
+    brutes = codes.to_numpy(dtype=object)
+
+    print("Codes Insee de commune")
+    comparer(
+        "département",
+        lignes,
+        lambda: to_departement(codes),
+        None if v1 is None else lambda: v1.departement(brutes),
+    )
+    comparer(
+        "code commune",
+        lignes,
+        lambda: to_code_commune(codes),
+        None if v1 is None else lambda: v1.code_commune(brutes),
+    )
+    comparer(
+        "commune et arrondissement",
+        lignes,
+        lambda: to_commune_et_arrondissement(codes),
+        None if v1 is None else lambda: v1.arrondissement(brutes),
     )
 
 
@@ -188,6 +238,7 @@ def executer(lignes: int, chemin_v1: Path) -> None:
 
     mesurer_references(lignes, v1)
     mesurer_superficies(lignes, v1)
+    mesurer_communes(lignes, v1)
 
 
 def analyser_arguments() -> argparse.Namespace:

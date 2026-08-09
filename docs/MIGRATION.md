@@ -1,8 +1,7 @@
 # Migrer de `basicfoncier` vers `basicfoncierv2`
 
-> **État partiel.** Les références cadastrales et les superficies sont livrées, leurs noms
-> sont figés. Pour `commune`, la colonne « v2 » reste une *proposition* : ne pas s'appuyer
-> dessus tant que le module n'est pas écrit.
+> **La parité avec le v1 est complète.** Toutes les fonctions ont leur équivalent et
+> leurs noms sont figés.
 > Ce fichier est mis à jour dans la même tâche que toute création, tout renommage ou toute
 > suppression d'une fonction publique (CLAUDE.md §5).
 
@@ -61,12 +60,32 @@ to_hectares(11_320)  # 1.132
 
 ### Communes
 
-| v1 | v2 (proposé) | Note |
+| v1 | v2 | Note |
 |---|---|---|
-| `utils.communes_departements_regions.code_dep_from_com_insee` | `commune.departement` | |
-| `utils.communes_departements_regions.code_com_from_com_insee` | `commune.code_commune` | |
-| `utils.communes_departements_regions.com_insee_from_code_dep_code_com` | `commune.insee_from_parts` | |
-| `utils.communes_departements_regions.com_insee_com_arrdt_from_insee` | `commune.split_arrondissement` | |
+| `utils.communes_departements_regions.code_dep_from_com_insee` | `commune.to_departement` | livré |
+| `utils.communes_departements_regions.code_com_from_com_insee` | `commune.to_code_commune` | livré |
+| `utils.communes_departements_regions.com_insee_from_code_dep_code_com` | `commune.insee_from_parts` | livré — **corrige un résultat faux du v1** outre-mer |
+| `utils.communes_departements_regions.com_insee_com_arrdt_from_insee` | `commune.to_commune_et_arrondissement` | livré — renvoie un `DataFrame` sur une colonne |
+
+```python
+from basicfoncierv2.commune import (
+    insee_from_parts,
+    to_code_commune,
+    to_commune_et_arrondissement,
+    to_departement,
+)
+
+to_departement("97215")  # '972'
+to_code_commune("97215")  # '15'
+insee_from_parts("972", "15")  # '97215'  (le v1 renvoyait '9715')
+to_commune_et_arrondissement("75104")  # ('75100', '104')
+```
+
+**Trois différences de comportement :**
+
+- **Recomposition outre-mer.** Le v1 tronquait le code département à deux caractères, produisant un code de quatre caractères : `("972", "15")` y donnait `9715`. Le v2 complète le code commune à la largeur restante et valide le résultat. Détail dans [BUGS.md](BUGS.md).
+- **Codes Insee validés.** Le v1 vérifiait la longueur par une assertion — désactivable à l'exécution, et muette sur la cause. Le v2 lève `CodeInseeInvalide` en nommant le code fautif. La Corse (`2A`, `2B`) est reconnue explicitement.
+- **Arrondissements sur une colonne.** `to_commune_et_arrondissement` renvoie un `DataFrame` aux colonnes `insee_commune` et `arrondissement`, là où le v1 renvoyait un couple de tableaux.
 
 ### Utilitaires internes
 

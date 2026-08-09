@@ -1,5 +1,16 @@
 # Journal
 
+## 2026-08-09 — Module des communes, parité complète avec le v1
+
+**Demande :** livrer `commune`, dernier module de la parité.
+**Fait :**
+- `to_departement`, `to_code_commune`, `insee_from_parts`, `to_commune_et_arrondissement`, chaîne ou colonne.
+- `insee_from_parts` corrige un **résultat faux** du v1 outre-mer, où la recomposition tronquait le code département. L'aller-retour est testé comme propriété sur métropole, Corse et outre-mer.
+- Les codes Insee sont validés par un motif au lieu d'une assertion, Corse (`2A`, `2B`) comprise.
+**Fichiers :** `basicfoncierv2/commune.py`, `basicfoncierv2/_internal/{insee,commune_arrow}.py`, `basicfoncierv2/{__init__,erreurs}.py`, `tests/test_commune.py`, `benchmarks/__main__.py`, `docs/{BUGS,DECISIONS,MIGRATION}.md`
+**Vérifié par :** `pytest` → 344 passed ; `ruff check .` → All checks passed ; `python -m benchmarks` → département x2,5 · code commune x1,4 · commune et arrondissement x4,7.
+**À savoir :** une question métier reste ouverte et **n'est pas de mon ressort** : le v1 associe aux arrondissements de Paris et Lyon des codes commune absents du répertoire Insee (75100, 69300) alors que Marseille reçoit le sien (13055). J'ai reproduit les trois valeurs telles quelles plutôt que d'en « corriger » deux à l'aveugle. Question posée dans `docs/BUGS.md`, décision et réversibilité dans `docs/DECISIONS.md`.
+
 ## 2026-08-09 — Lecture rapide des superficies
 
 **Demande :** accélérer `from_ha_a_ca`, plus lente que le v1 à sa livraison.

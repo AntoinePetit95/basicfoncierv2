@@ -12,3 +12,7 @@ class ReferenceCadastraleInvalide(ValueError):
 
 class SuperficieInvalide(ValueError):
     """Une superficie est négative, ou son écriture ne respecte aucun format connu."""
+
+
+class CodeInseeInvalide(ValueError):
+    """Un code Insee de commune ne respecte pas le format attendu."""
