@@ -103,10 +103,18 @@ def to_commune_et_arrondissement(
 ) -> tuple[str, str] | pd.DataFrame:
     """Sépare un arrondissement municipal de sa commune.
 
-    Paris, Lyon et Marseille sont découpées en arrondissements qui portent leur propre
-    code Insee. ``75104`` désigne le 4ᵉ arrondissement de Paris et se sépare en
-    ``("75100", "104")``. Un code qui ne désigne pas un arrondissement ressort inchangé,
-    accompagné de ``"000"``.
+    Paris, Lyon et Marseille sont découpées en arrondissements municipaux qui portent
+    leur propre code Insee, et **c'est ce code que porte une référence cadastrale**, non
+    celui de la commune. La parcelle du pilier Ouest de la tour Eiffel est
+    ``75107000CR0002`` : son champ insee vaut ``75107``, le 7ᵉ arrondissement.
+
+    Dans ce sens de lecture, l'arrondissement est reconnaissable : le code est donc
+    ramené à la commune **réelle** du répertoire Insee, l'arrondissement étant rendu à
+    part. ``75107`` se sépare en ``("75056", "107")``. Un code qui ne désigne pas un
+    arrondissement ressort inchangé, accompagné de ``"000"``.
+
+    La référence cadastrale elle-même n'est pas modifiée : elle continue de porter le
+    code d'arrondissement, qui est ce que contiennent les fichiers de la DGFiP.
 
     :param insee: un code Insee de commune, ou une colonne de codes
     :param invalide: voir :func:`to_departement`
@@ -136,6 +144,17 @@ def insee_from_parts(
     Le code commune est complété de zéros à la largeur que lui laisse le département :
     3 caractères en métropole, 2 en outre-mer. Contrairement au v1, ``("972", "15")``
     redonne bien ``"97215"``.
+
+    .. warning::
+       **Paris, Lyon et Marseille.** Rien dans un code département et un code commune ne
+       permet de deviner l'arrondissement : la recomposition se contente donc de
+       concaténer. ``("75", "056")`` donne ``"75056"``, le code de la commune de Paris —
+       qu'aucune parcelle parisienne ne porte, puisque les références cadastrales y
+       portent le code d'arrondissement (``75101`` à ``75120``). Si vous recomposez un
+       code destiné à être rapproché de données cadastrales, partez du code
+       d'arrondissement : ``("75", "107")`` donne ``"75107"``.
+
+       Le sens inverse, lui, sait trancher : voir :func:`to_commune_et_arrondissement`.
 
     :raises CodeInseeInvalide: les deux codes ne forment pas un code Insee valide
     """

@@ -22,6 +22,16 @@
 
 - **Alsace-Moselle** : départements 57, 67, 68. Les sections y sont **entièrement numériques**. La détection de la section par recherche du dernier caractère alphabétique — celle qu'utilise le v1 — n'y fonctionne pas : ces références exigent un traitement séparé et le format idu strict (14 caractères, numérique).
 
-- **Arrondissement municipal** : Paris, Lyon, Marseille. Le code insee de l'arrondissement (`75104`) se décompose en code insee de la commune (`75100`) et code d'arrondissement (`104`).
+- **Arrondissement municipal** : Paris, Lyon et Marseille sont découpées en arrondissements municipaux, qui portent chacun leur propre code Insee — Paris `75101` à `75120`, Lyon `69381` à `69389`, Marseille `13201` à `13216`.
+
+  **C'est ce code, et non celui de la commune, que porte une référence cadastrale.** La parcelle du pilier Ouest de la tour Eiffel est `75107000CR0002` : son champ insee vaut `75107`, le 7ᵉ arrondissement. Aucune parcelle parisienne ne porte `75056`, code Insee de la commune de Paris.
+
+  La lecture d'un code d'arrondissement rend donc le couple (commune réelle, arrondissement) : `75107` → (`75056`, `107`). Le sens inverse ne peut pas deviner l'arrondissement à partir du seul code commune ; il concatène ce qu'on lui donne.
+
+  | Ville | Commune | Arrondissements |
+  |---|---|---|
+  | Paris | `75056` | `75101` – `75120` |
+  | Lyon | `69123` | `69381` – `69389` |
+  | Marseille | `13055` | `13201` – `13216` |
 
 - **ha / a / ca** : hectare (10 000 m²), are (100 m²), centiare (1 m²). Format d'affichage foncier usuel : `12 ha 34 a 56 ca`. Les composantes `a` et `ca` sont affichées sur deux chiffres dès qu'une composante supérieure est présente.

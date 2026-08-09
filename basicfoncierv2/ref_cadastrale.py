@@ -114,6 +114,11 @@ def to_parts(
     Les quatre champs sortent toujours complétés de zéros à gauche, respectivement
     sur 5, 3, 2 et 4 caractères — quelle que soit la forme de l'entrée.
 
+    À Paris, Lyon et Marseille, le champ ``insee`` est celui de l'**arrondissement
+    municipal**, tel qu'il figure dans la référence : ``to_parts("75107000CR0002")``
+    donne ``insee="75107"``. Pour obtenir la commune, passez ce champ à
+    ``commune.to_commune_et_arrondissement``, qui rend ``("75056", "107")``.
+
     :param ref: une référence cadastrale, ou une colonne de références
     :param invalide: voir :func:`to_idu`. Une entrée absente reste absente dans les
         deux cas : c'est une donnée qui manque, pas une donnée fausse.
@@ -145,6 +150,17 @@ def idu_from_parts(
     Les champs sont complétés de zéros à gauche à leur largeur canonique. L'ordre des
     arguments est celui de :func:`to_parts` — il diffère de celui de ``basicfoncier`` v1.
 
+    .. warning::
+       **Paris, Lyon et Marseille.** Le champ insee d'une référence cadastrale y porte le
+       code de l'**arrondissement municipal**, pas celui de la commune : la parcelle du
+       pilier Ouest de la tour Eiffel est ``75107000CR0002``, et non ``75056...``. Rien
+       dans les quatre champs reçus ne permet de deviner l'arrondissement : l'assemblage
+       se contente de concaténer ce qu'on lui donne. Passer ``insee="75056"`` produit une
+       référence bien formée mais qui ne désigne aucune parcelle.
+
+       Le sens inverse sait trancher : ``commune.to_commune_et_arrondissement`` ramène
+       ``75107`` à ``("75056", "107")``.
+
     :raises ReferenceCadastraleInvalide: les champs n'assemblent pas une référence lisible
     """
     return to_idu(_assembler(insee, com_abs, section, numero))
@@ -158,8 +174,8 @@ def short_id_from_parts(
 ) -> str | pd.Series:
     """Assemble un identifiant court à partir des quatre champs.
 
-    Mêmes règles que :func:`idu_from_parts` pour les champs, et que :func:`to_short_id`
-    pour la forme du résultat.
+    Mêmes règles que :func:`idu_from_parts` pour les champs — **y compris l'avertissement
+    sur Paris, Lyon et Marseille** — et que :func:`to_short_id` pour la forme du résultat.
 
     :raises ReferenceCadastraleInvalide: les champs n'assemblent pas une référence lisible
     """

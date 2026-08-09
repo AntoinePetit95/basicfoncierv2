@@ -1,5 +1,22 @@
 # Décisions
 
+## 2026-08-09 — Arrondissements municipaux : conversion asymétrique, assumée
+
+**Contexte :** à Paris, Lyon et Marseille, le champ insee d'une référence cadastrale porte le code de l'**arrondissement municipal**, pas celui de la commune. La parcelle du pilier Ouest de la tour Eiffel est `75107000CR0002` ; aucune parcelle parisienne ne porte `75056`. Ce cas n'avait jamais été traité, ni dans le v1 ni dans le v2. Le v1 associait en outre aux arrondissements des codes commune inexistants (`75100`, `69300`).
+
+**Retenu :** deux comportements différents selon le sens de la conversion.
+
+- **Lecture** — l'arrondissement est reconnaissable à son code : `to_commune_et_arrondissement("75107")` rend `("75056", "107")`, le code Insee **réel** de la commune. La référence cadastrale, elle, n'est pas touchée : elle continue de porter `75107`, qui est ce que contiennent les fichiers de la DGFiP.
+- **Construction** — rien dans `("75", "056")` ni dans les quatre champs d'une référence ne dit l'arrondissement. `insee_from_parts` et `idu_from_parts` concatènent sans chercher à deviner. L'avertissement est dans leurs docstrings.
+
+**Pourquoi :** l'asymétrie n'est pas une commodité, c'est la structure du problème. L'information « quel arrondissement » est présente dans un code d'arrondissement et absente d'un code commune ; une fonction ne peut pas restituer ce qu'elle n'a pas reçu. Refuser de trancher dans le sens où l'on peut trancher, au nom de la symétrie, priverait l'appelant d'un résultat qu'il est en droit d'attendre.
+
+**Écarté :** normaliser le champ insee des références vers la commune (`75107000CR0002` → `75056000CR0002`) — produirait une référence qui ne désigne aucune parcelle et casserait toute jointure avec les fichiers DGFiP ; deviner l'arrondissement à la construction en exigeant un champ supplémentaire (changerait la signature de fonctions de la parité v1) ; lever une erreur quand on reçoit `75056` en construction (le code est valide, et l'appelant peut vouloir un code commune pour autre chose qu'une parcelle).
+
+**Sources :** codes commune et plages d'arrondissements vérifiés au Code officiel géographique de l'Insee — Paris `75056` / `75101`-`75120`, Lyon `69123` / `69381`-`69389`, Marseille `13055` / `13201`-`13216`. Les plages du v1 étaient exactes ; seuls deux codes commune étaient faux.
+
+**Conséquence :** changement de valeurs produites pour Paris et Lyon, signalé en tête de la section Communes de `docs/MIGRATION.md`.
+
 ## 2026-08-09 — Un seul fragment de motif pour le code Insee, partagé entre modules
 
 **Contexte :** la forme d'un code Insee était écrite deux fois. `_internal/insee.py` connaissait la Corse (`(?:[0-9]{2}|2[AB])[0-9]{3}`), `_internal/motifs.py` l'ignorait (`[0-9]{5}`). Conséquence : `commune.to_departement("2A004")` fonctionnait, `ref_cadastrale.to_parts("2A0040000H0011")` levait `ReferenceCadastraleInvalide` — sur une donnée que le v1 décomposait sans difficulté. Toute la Corse était perdue à la migration.
@@ -73,6 +90,8 @@
 **Écarté :** aligner Paris et Lyon sur leurs codes réels (correction plausible, conséquences invérifiables d'ici) ; lever une erreur sur ces deux communes (casserait des traitements qui fonctionnent aujourd'hui).
 
 **Réversibilité :** la table tient dans `_internal/insee.py`. Si la réponse est « ce sont des erreurs », la correction est de deux caractères et d'une mise à jour des cas de test.
+
+**➜ Renversée le 2026-08-09** par la décision « Arrondissements municipaux » ci-dessus : la réponse est venue, ce sont bien deux erreurs. La réversibilité annoncée était juste — la correction a effectivement tenu en deux valeurs et une mise à jour des tests.
 
 ## 2026-08-09 — Lire les superficies par découpe, le motif en secours
 

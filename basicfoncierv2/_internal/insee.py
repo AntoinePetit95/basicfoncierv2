@@ -9,7 +9,13 @@ code commune. La coupure n'est pas toujours au même endroit :
   (``97215`` → ``972`` + ``15``).
 
 Trois communes sont découpées en arrondissements municipaux, qui portent leur propre
-code Insee. ``75104`` désigne le 4ᵉ arrondissement de Paris.
+code Insee. ``75107`` désigne le 7ᵉ arrondissement de Paris, dont la commune est
+``75056``.
+
+**C'est le code d'arrondissement, et non celui de la commune, que porte une référence
+cadastrale.** La parcelle du pilier Ouest de la tour Eiffel est ``75107000CR0002`` : son
+champ insee vaut ``75107``, jamais ``75056``. Aucune parcelle parisienne ne porte
+``75056``. Il en va de même à Lyon (``69123``) et à Marseille (``13055``).
 """
 
 LONGUEUR_INSEE = 5
@@ -45,21 +51,20 @@ def _arrondissements(prefixe: str, premier: int, dernier: int) -> tuple[str, ...
     return tuple(f"{prefixe}{numero:02d}" for numero in range(premier, dernier + 1))
 
 
+# Codes vérifiés au Code officiel géographique de l'Insee : 20 arrondissements à Paris
+# (75101-75120), 9 à Lyon (69381-69389), 16 à Marseille (13201-13216).
 ARRONDISSEMENTS_PARIS = _arrondissements("751", 1, 20)
 ARRONDISSEMENTS_LYON = _arrondissements("693", 81, 89)
 ARRONDISSEMENTS_MARSEILLE = _arrondissements("132", 1, 16)
 
-#: Code Insee retenu pour la commune, par jeu d'arrondissements.
+#: Code Insee **réel** de la commune, par jeu d'arrondissements.
 #:
-#: .. warning::
-#:    Ces trois valeurs sont **reprises telles quelles de basicfoncier v1**, y compris
-#:    son incohérence : Marseille reçoit son code Insee réel (13055) tandis que Paris
-#:    et Lyon reçoivent des codes synthétiques (75100, 69300) au lieu de leurs codes
-#:    réels (75056, 69123). Les changer romprait les traitements existants ; la
-#:    question est posée dans ``docs/BUGS.md``.
+#: Ce sont les codes du répertoire Insee, et non ceux du v1, qui associait à Paris et à
+#: Lyon des codes synthétiques (75100, 69300) absents du répertoire. Un code
+#: d'arrondissement se ramène donc ici à la commune qui existe vraiment.
 COMMUNES_A_ARRONDISSEMENTS = {
-    "75100": ARRONDISSEMENTS_PARIS,
-    "69300": ARRONDISSEMENTS_LYON,
+    "75056": ARRONDISSEMENTS_PARIS,
+    "69123": ARRONDISSEMENTS_LYON,
     "13055": ARRONDISSEMENTS_MARSEILLE,
 }
 

@@ -1,5 +1,22 @@
 # Journal
 
+## 2026-08-09 — Arrondissements municipaux de Paris, Lyon et Marseille
+
+**Demande :** traiter un cas particulier jamais implémenté — le code Insee de la commune n'est pas celui que porte la référence cadastrale à Paris, Lyon et Marseille. Sourcer les codes d'arrondissement à l'Insee, et appliquer une conversion asymétrique : concaténation aveugle à la construction, détection de l'arrondissement à la lecture.
+**Fait :**
+- Codes vérifiés au Code officiel géographique : les trois plages du v1 étaient **exactes** (Paris `75101`-`75120`, Lyon `69381`-`69389`, Marseille `13201`-`13216`). Seuls deux codes commune étaient faux.
+- `COMMUNES_A_ARRONDISSEMENTS` passe à `75056` / `69123` / `13055`. `to_commune_et_arrondissement("75107")` rend `("75056", "107")`.
+- La référence cadastrale n'est pas touchée : `to_parts("75107000CR0002")` rend `insee="75107"`, et `to_idu` la restitue à l'identique.
+- Avertissements en docstring sur `idu_from_parts`, `short_id_from_parts` et `insee_from_parts` : rien dans leurs arguments ne permet de deviner l'arrondissement, elles concatènent.
+- 19 tests ajoutés, dont la couverture complète des trois plages, leurs bornes voisines (`75100`, `75121`, `69380`, `69390`, `13217`), et la parcelle du pilier Ouest de la tour Eiffel de bout en bout.
+
+**Fichiers :** `basicfoncierv2/_internal/insee.py`, `basicfoncierv2/{commune,ref_cadastrale}.py`, `tests/test_commune.py`, `docs/{BUGS,DECISIONS,MIGRATION,VOCABULAIRE}.md`
+**Vérifié par :** `pytest` → 473 passed (454 avant) ; `ruff check .` → All checks passed ; `ruff format --check .` → clean.
+**À savoir :**
+- **Changement de valeurs produites.** `75100` → `75056` et `69300` → `69123`. Tout traitement EF qui stocke ou joint sur ces codes verra ses sorties changer. Signalé en tête de la section Communes de `docs/MIGRATION.md`, avec le `replace` qui rétablit l'ancien comportement le temps d'une migration.
+- Cela tranche la question que `docs/BUGS.md` laissait ouverte depuis la livraison du module `commune`, et renverse la décision « Reprendre telle quelle la table d'arrondissements du v1 ». J'avais eu raison de ne pas trancher seul : la réponse ne se déduisait pas du code, seulement du métier — et elle allait plus loin que la table, puisque le cas lui-même n'avait jamais été implémenté.
+- L'asymétrie entre les deux sens est délibérée et documentée : l'information « quel arrondissement » est présente dans un code d'arrondissement et absente d'un code commune.
+
 ## 2026-08-09 — Correction des cinq blocages de la revue indépendante
 
 **Demande :** corriger les constats de la revue lancée en agents indépendants.

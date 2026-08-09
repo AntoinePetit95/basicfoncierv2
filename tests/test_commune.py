@@ -11,6 +11,7 @@ from basicfoncierv2.commune import (
     to_commune_et_arrondissement,
     to_departement,
 )
+from basicfoncierv2.ref_cadastrale import idu_from_parts, to_idu, to_parts
 
 # Codes Insee valides avec leur découpe en département et code commune.
 DECOUPES = [
@@ -33,16 +34,21 @@ CODES_INVALIDES = [
     "78O48",
 ]
 
-# Arrondissements municipaux et leur séparation en commune et numéro.
+# Arrondissements municipaux et leur séparation en commune réelle et numéro.
+# Bornes vérifiées au Code officiel géographique : Paris 75101-75120, Lyon 69381-69389,
+# Marseille 13201-13216 ; communes 75056, 69123, 13055.
 ARRONDISSEMENTS = [
-    ("75101", "75100", "101"),
-    ("75104", "75100", "104"),
-    ("75120", "75100", "120"),
-    ("69381", "69300", "381"),
-    ("69389", "69300", "389"),
+    ("75101", "75056", "101"),
+    ("75107", "75056", "107"),
+    ("75120", "75056", "120"),
+    ("69381", "69123", "381"),
+    ("69389", "69123", "389"),
     ("13201", "13055", "201"),
     ("13216", "13055", "216"),
 ]
+
+# Codes voisins des plages d'arrondissements, qui n'en sont pas.
+HORS_ARRONDISSEMENTS = ["75056", "69123", "13055", "75121", "75100", "69380", "69390", "13217"]
 
 
 class TestDepartement:
@@ -171,6 +177,20 @@ class TestArrondissement:
     def test_laisse_inchangee_une_commune_sans_arrondissement(self):
         assert to_commune_et_arrondissement("78048") == ("78048", "000")
 
+    @pytest.mark.parametrize("insee", HORS_ARRONDISSEMENTS)
+    def test_laisse_inchange_un_code_voisin_d_une_plage_d_arrondissements(self, insee):
+        """Les bornes des trois plages sont exactes : ni trop larges, ni décalées.
+
+        ``75100`` en fait partie : c'est le code que le v1 employait pour la commune de
+        Paris, et il n'existe pas au répertoire Insee.
+        """
+        assert to_commune_et_arrondissement(insee) == (insee, "000")
+
+    def test_ramene_un_arrondissement_a_la_commune_reelle_et_non_au_code_du_v1(self):
+        """Le v1 rendait ``75100`` pour Paris et ``69300`` pour Lyon : ils n'existent pas."""
+        assert to_commune_et_arrondissement("75107")[0] == "75056"
+        assert to_commune_et_arrondissement("69381")[0] == "69123"
+
     def test_nomme_les_colonnes(self):
         parts = to_commune_et_arrondissement(pd.Series(["75104"]))
         assert list(parts.columns) == ["insee_commune", "arrondissement"]
@@ -178,7 +198,8 @@ class TestArrondissement:
     def test_conserve_l_ordre_quand_les_communes_alternent(self):
         codes = pd.Series(["78048", "75104", "13201", "97215", "69381"])
         parts = to_commune_et_arrondissement(codes)
-        assert list(parts["insee_commune"]) == ["78048", "75100", "13055", "97215", "69300"]
+        assert list(parts["insee_commune"]) == ["78048", "75056", "13055", "97215", "69123"]
+        assert list(parts["arrondissement"]) == ["000", "104", "201", "000", "381"]
 
     def test_propage_une_valeur_absente(self):
         parts = to_commune_et_arrondissement(pd.Series(["75104", None]))
@@ -188,6 +209,57 @@ class TestArrondissement:
         assert all(
             pd.isna(part) for part in to_commune_et_arrondissement("AB048", invalide="manquant")
         )
+
+    @pytest.mark.parametrize(
+        ("commune", "codes"),
+        [
+            ("75056", [f"751{numero:02d}" for numero in range(1, 21)]),
+            ("69123", [f"693{numero:02d}" for numero in range(81, 90)]),
+            ("13055", [f"132{numero:02d}" for numero in range(1, 17)]),
+        ],
+    )
+    def test_couvre_tous_les_arrondissements_de_la_ville(self, commune, codes):
+        """20 arrondissements à Paris, 9 à Lyon, 16 à Marseille (Insee, COG)."""
+        parts = to_commune_et_arrondissement(pd.Series(codes))
+        assert list(parts["insee_commune"]) == [commune] * len(codes)
+        assert list(parts["arrondissement"]) == [code[2:] for code in codes]
+
+
+class TestParcelleDansUnArrondissement:
+    """Une référence cadastrale porte le code d'arrondissement, pas celui de la commune.
+
+    Cas réel : la parcelle du pilier Ouest de la tour Eiffel, dans le 7ᵉ arrondissement
+    de Paris. Aucune parcelle parisienne ne porte ``75056``.
+    """
+
+    PILIER_OUEST = "75107000CR0002"
+
+    def test_le_champ_insee_de_la_reference_est_l_arrondissement(self):
+        assert to_parts(self.PILIER_OUEST)[0] == "75107"
+
+    def test_la_reference_traverse_la_bibliotheque_inchangee(self):
+        assert to_idu(self.PILIER_OUEST) == self.PILIER_OUEST
+
+    def test_la_commune_reelle_se_deduit_du_champ_insee(self):
+        insee = to_parts(self.PILIER_OUEST)[0]
+        assert to_commune_et_arrondissement(insee) == ("75056", "107")
+
+    def test_le_chemin_colonne_donne_la_meme_chose(self):
+        parts = to_parts(pd.Series([self.PILIER_OUEST]))
+        communes = to_commune_et_arrondissement(parts["insee"])
+        assert tuple(communes.iloc[0]) == ("75056", "107")
+
+    def test_le_departement_reste_celui_de_paris(self):
+        assert to_departement(to_parts(self.PILIER_OUEST)[0]) == "75"
+
+    def test_la_recomposition_concatene_sans_deviner_l_arrondissement(self):
+        """Rien dans ``("75", "056")`` ne dit l'arrondissement : on ne l'invente pas."""
+        assert insee_from_parts("75", "056") == "75056"
+        assert insee_from_parts("75", "107") == "75107"
+
+    def test_assembler_une_reference_depuis_le_code_commune_ne_leve_pas_d_erreur(self):
+        """Elle est bien formée, mais ne désigne aucune parcelle : la docstring le dit."""
+        assert idu_from_parts("75056", "000", "CR", "0002") == "75056000CR0002"
 
 
 class TestContratDAppel:

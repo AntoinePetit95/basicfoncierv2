@@ -92,15 +92,45 @@ from basicfoncierv2.commune import (
 to_departement("97215")  # '972'
 to_code_commune("97215")  # '15'
 insee_from_parts("972", "15")  # '97215'  (le v1 renvoyait '9715')
-to_commune_et_arrondissement("75104")  # ('75100', '104')
+to_commune_et_arrondissement("75107")  # ('75056', '107')  (le v1 renvoyait '75100')
 ```
 
-**Quatre différences de comportement :**
+**Cinq différences de comportement :**
+
+- **⚠️ Codes commune de Paris et Lyon.** `to_commune_et_arrondissement` rend désormais le code Insee **réel** de la commune. Pour Marseille, rien ne change (`13055`). Pour Paris et Lyon, la valeur produite change :
+
+  | Ville | v1 | v2 | Le code du v1 existe-t-il ? |
+  |---|---|---|---|
+  | Paris | `75100` | `75056` | non |
+  | Lyon | `69300` | `69123` | non |
+  | Marseille | `13055` | `13055` | oui |
+
+  **Si vos traitements stockent, exportent ou joignent sur ces valeurs, elles changeront.** `75100` et `69300` sont absents du répertoire Insee : aucune jointure avec un référentiel officiel ne pouvait aboutir. Pour retrouver l'ancien comportement le temps d'une migration : `serie.replace({"75056": "75100", "69123": "69300"})`.
 
 - **Recomposition outre-mer.** Le v1 tronquait le code département à deux caractères, produisant un code de quatre caractères : `("972", "15")` y donnait `9715`. Le v2 complète le code commune à la largeur restante et valide le résultat. Détail dans [BUGS.md](BUGS.md).
 - **Codes département validés.** `insee_from_parts` refuse un code département mal formé au lieu de le compenser par le remplissage du code commune : `("7", "048")` lève `CodeInseeInvalide` au lieu de renvoyer `"70048"`. Si vous construisez vos codes département par un calcul, vérifiez qu'il produit bien `"07"` et non `"7"`.
 - **Codes Insee validés.** Le v1 vérifiait la longueur par une assertion — désactivable à l'exécution, et muette sur la cause. Le v2 lève `CodeInseeInvalide` en nommant le code fautif. La Corse (`2A`, `2B`) est reconnue explicitement.
 - **Arrondissements sur une colonne.** `to_commune_et_arrondissement` renvoie un `DataFrame` aux colonnes `insee_commune` et `arrondissement`, là où le v1 renvoyait un couple de tableaux.
+
+### Paris, Lyon, Marseille : la référence cadastrale porte l'arrondissement
+
+Le champ insee d'une référence cadastrale y désigne l'**arrondissement municipal**, jamais la commune. La parcelle du pilier Ouest de la tour Eiffel est `75107000CR0002` — `75107`, 7ᵉ arrondissement de Paris. Aucune parcelle parisienne ne porte `75056`.
+
+**Dans le sens de la lecture, l'arrondissement est reconnaissable** : la référence reste inchangée, et le champ insee se ramène à la commune réelle quand on le demande.
+
+```python
+parts = to_parts("75107000CR0002")
+parts[0]  # '75107' — la référence n'est pas modifiée
+to_commune_et_arrondissement(parts[0])  # ('75056', '107')
+
+# Sur une colonne, le même enchaînement :
+parts = to_parts(df["idu"])
+communes = to_commune_et_arrondissement(parts["insee"])  # insee_commune, arrondissement
+```
+
+**Dans le sens de la construction, il ne l'est pas.** Rien dans `("75", "056")` ne dit l'arrondissement : `insee_from_parts` et `idu_from_parts` concatènent sans chercher à deviner. `idu_from_parts("75056", "000", "CR", "0002")` produit une référence bien formée qui ne désigne aucune parcelle. Pour construire une référence parisienne, partez du code d'arrondissement.
+
+Les trois plages de codes sont vérifiées au Code officiel géographique de l'Insee : Paris `75101`–`75120` (20), Lyon `69381`–`69389` (9), Marseille `13201`–`13216` (16).
 
 ### Utilitaires internes
 

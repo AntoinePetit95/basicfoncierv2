@@ -2,22 +2,6 @@
 
 ## Ouverts
 
-### À trancher — quel code Insee pour la commune d'un arrondissement ?
-
-**Ce n'est pas un défaut constaté mais une question métier que le code ne permet pas de trancher.** Le v2 reproduit le v1 en attendant une réponse.
-
-`com_insee_com_arrdt_from_insee` associe à chaque jeu d'arrondissements un code commune, et ces trois codes ne suivent pas la même règle :
-
-| Commune | Code retenu par le v1 | Code Insee réel |
-|---|---|---|
-| Marseille | `13055` | `13055` ✅ |
-| Paris | `75100` | `75056` ❓ |
-| Lyon | `69300` | `69123` ❓ |
-
-Marseille reçoit son code Insee réel, Paris et Lyon reçoivent des codes qui n'existent pas au répertoire Insee. Soit c'est une convention interne EF — auquel cas elle mérite d'être écrite dans `docs/VOCABULAIRE.md` — soit ce sont deux valeurs fausses.
-
-**Contournement en place :** le v2 reprend les trois valeurs telles quelles, dans une table unique (`_internal/insee.py`, `COMMUNES_A_ARRONDISSEMENTS`). Changer une valeur dont dépendent des traitements existants n'est pas une décision d'implémentation. La correction, si elle est décidée, tient en deux caractères modifiés et une mise à jour des tests.
-
 ### Hérité de `basicfoncier` v1 — `com_insee_from_code_dep_code_com` tronque l'outre-mer
 
 **Périmètre :** défaut du v1. **Il n'est pas corrigé ici** — le v1 est intouchable (CLAUDE.md §5).
@@ -79,6 +63,22 @@ ref_parcelle_to_short_id("972150000C0302") → ValueError: invalid literal for i
 4. À signaler dans `docs/MIGRATION.md` : un utilisateur du v1 peut avoir des colonnes entièrement à `NA` sans le savoir.
 
 ## Résolus
+
+### 2026-08-09 — Tranché : les codes commune de Paris et Lyon du v1 sont faux
+
+La question posée ici — Marseille recevait son code Insee réel (`13055`) alors que Paris et Lyon recevaient `75100` et `69300`, absents du répertoire Insee — **est tranchée par le propriétaire des données : ce sont deux valeurs fausses.**
+
+| Ville | v1 | v2 |
+|---|---|---|
+| Paris | `75100` | `75056` |
+| Lyon | `69300` | `69123` |
+| Marseille | `13055` | `13055` |
+
+Codes vérifiés au Code officiel géographique de l'Insee, comme les trois plages d'arrondissements — Paris `75101`–`75120`, Lyon `69381`–`69389`, Marseille `13201`–`13216`, qui étaient exactes.
+
+**Ce que la question cachait :** ce n'était pas seulement une erreur de table. Le cas Paris/Lyon/Marseille n'avait jamais été traité, ni dans le v1 ni dans le v2. Le champ insee d'une référence cadastrale y porte le code d'**arrondissement municipal**, pas celui de la commune : la parcelle du pilier Ouest de la tour Eiffel est `75107000CR0002`. Aucune parcelle parisienne ne porte `75056`. Les deux sens de conversion ne sont donc pas symétriques, et c'est voulu — voir [DECISIONS.md](DECISIONS.md).
+
+**Conséquence pour les utilisateurs :** les valeurs produites changent pour Paris et Lyon. Signalé en tête de section dans [MIGRATION.md](MIGRATION.md), avec le `replace` qui rétablit l'ancien comportement le temps d'une migration.
 
 ### 2026-08-09 — Cinq défauts du v2 trouvés par la revue indépendante
 
