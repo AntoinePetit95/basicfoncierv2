@@ -1,5 +1,25 @@
 # Journal
 
+## 2026-08-09 — Préparation d'un paquet publiable
+
+**Demande :** README pensé pour un public extérieur, `py.typed`, `CHANGELOG`, suppression d'`adresse`, et vigilance sur les informations internes puisque le paquet ira sur PyPI.
+**Fait :**
+- **README public** réécrit de bout en bout : installation, les trois modules, le chemin colonne, le contrat sur les données invalides, un tableau des territoires couverts. **Chacun de ses 17 exemples a été exécuté et comparé au résultat annoncé** avant d'être publié.
+- **`py.typed`** ajouté et déclaré en `package-data` ; sa présence dans la roue construite est vérifiée.
+- **`CHANGELOG.md`** créé, section `[Non publié]`, avec les différences de comportement face au v1.
+- **`adresse` supprimé** définitivement du périmètre, avec son équivalent d'une ligne dans `MIGRATION.md` — testé lui aussi, y compris la propagation des valeurs manquantes sur colonne.
+- **Classificateurs PyPI** ajoutés (aucun jusque-là), plus les liens `Changelog` et `Issues`. Pas de classificateur `License ::` : la licence est déjà déclarée en expression PEP 639, et les deux ensemble sont refusés.
+- **`BUGS.md` restructuré** : la section « Ouverts » ne contenait plus que des défauts *du v1*, ce qu'un lecteur extérieur aurait lu comme « le v2 a trois bugs ouverts ».
+- **Traces internes retirées** des documents destinés au public — `README`, `CHANGELOG`, `MIGRATION`, `VOCABULAIRE`, `BUGS`, `DECISIONS` : plus aucune mention d'EF ni renvoi à `CLAUDE.md`.
+- Roue construite et métadonnées relues : `Requires-Python: >=3.10`, `License-Expression: Unlicense`, `Description-Content-Type: text/markdown`, dépendances correctes.
+
+**Fichiers :** `README.md`, `CHANGELOG.md`, `pyproject.toml`, `basicfoncierv2/py.typed`, `docs/{BUGS,DECISIONS,MIGRATION}.md`
+**Vérifié par :** `pytest` → 473 passed ; `ruff check .` → All checks passed ; roue construite, `py.typed` présent ; 17 exemples du README rejoués.
+**À savoir :**
+- `ruff format` formate aussi les blocs Python du README : les exemples publiés suivent le style du code, sans effort particulier.
+- Le message d'erreur que j'avais écrit dans le README de mémoire était tronqué. Je l'ai remplacé par un message réellement levé, capturé sur une colonne de 100 000 lignes.
+- **Reste à trancher, et cela ne se règle pas par une modification de l'arbre :** `CLAUDE.md`, `.claude/commands/revue.md` et ce journal contiennent la méthode de travail interne. Les retirer aujourd'hui ne les retirerait pas de l'historique git, qui deviendra public en même temps que le dépôt. Aucun secret n'y figure — vérifié sur tout l'historique — mais la décision reste entière.
+
 ## 2026-08-09 — Plancher Python abaissé à 3.10
 
 **Demande :** élargir `requires-python`, en le prouvant plutôt qu'en le déclarant.

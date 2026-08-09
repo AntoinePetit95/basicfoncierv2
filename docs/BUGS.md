@@ -1,10 +1,13 @@
 # Bugs
 
-## Ouverts
+## Défauts hérités de `basicfoncier` v1
 
-### Hérité de `basicfoncier` v1 — `com_insee_from_code_dep_code_com` tronque l'outre-mer
+**Aucun de ces défauts n'affecte `basicfoncierv2`** : ils sont tous corrigés ici. Ils
+restent consignés parce que le v1 est toujours publié et utilisé, et que quiconque migre
+doit savoir que ses données produites peuvent être fausses depuis plus longtemps qu'il ne
+le croit. Ils ne seront pas corrigés dans le v1, qui est figé.
 
-**Périmètre :** défaut du v1. **Il n'est pas corrigé ici** — le v1 est intouchable (CLAUDE.md §5).
+### `com_insee_from_code_dep_code_com` tronque l'outre-mer
 
 **Symptôme :** la recomposition ramène le code département à deux caractères (`code_dep[:2]`) avant de concaténer. En métropole c'est sans effet ; outre-mer, où le département tient sur trois caractères, il en manque un au résultat.
 
@@ -19,9 +22,7 @@ L'aller-retour est donc rompu outre-mer : décomposer `97215` donne `("972", "15
 
 **Traitement dans le v2 :** `commune.insee_from_parts` complète le code commune à la largeur que lui laisse le département — 3 caractères en métropole, 2 outre-mer — et valide le résultat. L'aller-retour est testé comme propriété sur tous les territoires.
 
-### Hérité de `basicfoncier` v1 — `superficie_from_str` se trompe sur les écritures non complétées
-
-**Périmètre :** défaut du v1. **Il n'est pas corrigé ici** — le v1 est intouchable (CLAUDE.md §5). Consigné parce que le v2 réimplémente cette lecture et parce que la migration doit prévenir les utilisateurs.
+### `superficie_from_str` se trompe sur les écritures non complétées
 
 **Symptôme :** la lecture retire les lettres une à une (`replace(" ", "").replace("a", "").replace("c", "").replace("h", "")`) puis convertit le reste en entier. Cela ne fonctionne que si les ares et les centiares sont écrits sur deux chiffres.
 
@@ -39,9 +40,7 @@ superficie_from_str("1 ha 13 a 20 ca") → 11 320  (correct : composantes compl�
 
 **Traitement dans le v2 :** `superficie.from_ha_a_ca` lit par motif et non par suppression de lettres. Les écritures non complétées sont testées explicitement, et une écriture illisible lève une erreur au lieu de produire un nombre.
 
-### Hérité de `basicfoncier` v1 — ordre de tuple incohérent dans `ref_parcelle_to_parts`
-
-**Périmètre :** défaut du v1. **Il n'est pas corrigé ici** — le v1 est intouchable (CLAUDE.md §5). Consigné parce que le v2 réimplémente ces fonctions et ne doit pas reproduire le défaut, et parce que la migration doit prévenir les utilisateurs.
+### Ordre de tuple incohérent dans `ref_parcelle_to_parts`
 
 **Symptôme :** `ref_parcelle_to_parts` renvoie `(insee, com_abs, section, numero)` dans sa branche générale, mais `(insee, section, numero, com_abs)` dans sa branche Alsace-Moselle. Ses deux appelants, `ref_parcelle_to_idu` et `ref_parcelle_to_short_id`, dépaquettent l'ancien ordre.
 
@@ -60,9 +59,9 @@ ref_parcelle_to_short_id("972150000C0302") → ValueError: invalid literal for i
 1. L'ordre canonique retenu est celui des docstrings et du dernier commit : **`(insee, com_abs, section, numero)`**.
 2. Le premier test écrit sur la décomposition doit couvrir une référence Alsace-Moselle *et* une référence générale, et vérifier que les deux respectent le même ordre.
 3. Aucun `except:` nu. Une donnée invalide donne une valeur manquante **explicitement demandée par l'appelant**, jamais un silence par défaut.
-4. À signaler dans `docs/MIGRATION.md` : un utilisateur du v1 peut avoir des colonnes entièrement à `NA` sans le savoir.
+4. Signalé dans [MIGRATION.md](MIGRATION.md) : un utilisateur du v1 peut avoir des colonnes entièrement à `NA` sans le savoir.
 
-## Résolus
+## Questions tranchées et défauts corrigés dans le v2
 
 ### 2026-08-09 — Tranché : les codes commune de Paris et Lyon du v1 sont faux
 
@@ -82,7 +81,7 @@ Codes vérifiés au Code officiel géographique de l'Insee, comme les trois plag
 
 ### 2026-08-09 — Cinq défauts du v2 trouvés par la revue indépendante
 
-Trois relecteurs lancés en parallèle sur le code complet ont convergé sur cinq défauts que ma propre revue n'avait pas vus. Tous sont corrigés sur `fix/constats-de-revue`, chacun avec son test de non-régression. Le point commun des quatre premiers : **le chemin scalaire et le chemin colonne ne se comportaient pas pareil**, et seule la confrontation systématique des deux les révélait.
+Trois relecteurs lancés en parallèle sur le code complet ont convergé sur cinq défauts que ma propre revue n'avait pas vus. Tous sont corrigés, chacun avec son test de non-régression. Le point commun des quatre premiers : **le chemin scalaire et le chemin colonne ne se comportaient pas pareil**, et seule la confrontation systématique des deux les révélait.
 
 | Défaut | Symptôme | Correction |
 |---|---|---|

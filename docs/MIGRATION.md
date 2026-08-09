@@ -138,7 +138,20 @@ Les trois plages de codes sont vérifiées au Code officiel géographique de l'I
 |---|---|---|
 | `utils.string_manipulation.first_car_alpha` | *(supprimé)* | détail d'implémentation, remplacé par une regex |
 | `utils.string_manipulation.first_car_numeric` | *(supprimé)* | idem |
-| `utils.adresse.adresse` | *(à trancher)* | hors périmètre cadastral ; à conserver ou à sortir |
+| `utils.adresse.adresse` | *(supprimé)* | hors périmètre cadastral — voir ci-dessous |
+
+**`adresse` n'est pas repris.** La fonction du v1 concatène un numéro et un nom de voie, en insérant une espace quand la voie n'est pas vide. Ce n'est ni cadastral ni foncier, et le maintenir dans ce paquet obligerait à le tester et à le documenter au titre d'un sujet qui n'est pas le sien. L'équivalent tient sur une ligne :
+
+```python
+# v1
+adresse(numero, voie)
+
+# v2 — sur une valeur
+f"{numero} {voie}".strip()
+
+# v2 — sur une colonne, en préservant les valeurs manquantes
+(df["numero"].astype("string") + " " + df["voie"].astype("string")).str.strip()
+```
 
 ## Les fonctions livrées
 

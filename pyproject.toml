@@ -11,7 +11,22 @@ requires-python = ">=3.10"
 license = "Unlicense"
 license-files = ["LICENSE"]
 authors = [{ name = "Antoine PETIT", email = "antoine.petit@energie-fonciere.fr" }]
-keywords = ["foncier", "cadastre", "parcelle", "pandas"]
+keywords = ["foncier", "cadastre", "parcelle", "insee", "pandas", "pyarrow"]
+# Pas de classificateur « License :: » : la licence est déjà déclarée en expression
+# PEP 639 ci-dessus, et les deux ensemble sont refusés.
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: French",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: GIS",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
 # Bornes vérifiées par la matrice de .github/workflows/tests.yml, pas déclarées de
 # confiance — Python 3.10 à 3.12 y sont testés. numpy n'y figure pas : le paquet ne
 # l'importe pas, pandas s'en charge.
@@ -26,9 +41,16 @@ dev = ["pytest>=8.0", "ruff>=0.6", "numpy>=1.26"]
 
 [project.urls]
 Repository = "https://github.com/AntoinePetit95/basicfoncierv2"
+Changelog = "https://github.com/AntoinePetit95/basicfoncierv2/blob/main/CHANGELOG.md"
+Issues = "https://github.com/AntoinePetit95/basicfoncierv2/issues"
 
 [tool.setuptools.packages.find]
 include = ["basicfoncierv2*"]
+
+# Sans ce marqueur, les annotations du paquet sont ignorées par mypy et les éditeurs :
+# l'utilisateur ne voit rien du typage, pourtant complet.
+[tool.setuptools.package-data]
+basicfoncierv2 = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
