@@ -30,6 +30,10 @@ REFERENCES_INVALIDES = [
     "574631234567890",
     "78048 H11",
     "AB048H11",
+    # Quatorze caractères, mais pas une forme idu pour autant : hors Alsace-Moselle il
+    # faut une lettre de section, et en Alsace-Moselle il n'en faut pas.
+    "78048000120123",
+    "57463000AB1234",
 ]
 
 
@@ -118,6 +122,52 @@ class TestDecompositionColonne:
     def test_epargne_les_lignes_valides_qui_entourent_une_ligne_fautive(self):
         parts = to_parts(pd.Series(["78048H11", "AB048H11"]), invalide="manquant")
         assert tuple(parts.iloc[0]) == ("78048", "000", "0H", "0011")
+
+
+class TestMelangeDeFormes:
+    """La colonne emprunte deux chemins selon la forme : ils doivent se recoller.
+
+    Une référence déjà de forme idu est découpée à positions fixes ; toute autre est
+    d'abord reconstruite par extraction. Ces tests vérifient que le mélange des deux
+    ne décale ni ne mélange les lignes.
+    """
+
+    def test_decompose_une_forme_courte_placee_apres_une_forme_idu(self):
+        parts = to_parts(pd.Series(["780480000H0011", "78048AB1"]))
+        assert tuple(parts.iloc[1]) == ("78048", "000", "AB", "0001")
+
+    def test_decompose_une_forme_idu_placee_apres_une_forme_courte(self):
+        parts = to_parts(pd.Series(["78048AB1", "780480000H0011"]))
+        assert tuple(parts.iloc[1]) == ("78048", "000", "0H", "0011")
+
+    def test_conserve_l_ordre_des_lignes_quand_les_formes_alternent(self):
+        refs = ["780480000H0011", "78048AB1", "57463123456789", None, "78048H11"]
+        attendu = ["78048", "78048", "57463", None, "78048"]
+        parts = to_parts(pd.Series(refs))
+        assert list(parts["insee"].astype(object).where(parts["insee"].notna(), None)) == attendu
+
+    def test_decompose_une_colonne_entierement_de_forme_idu(self):
+        parts = to_parts(pd.Series(["780480000H0011", "972150000C0302"]))
+        assert list(parts["section"]) == ["0H", "0C"]
+
+    def test_decompose_une_colonne_sans_aucune_forme_idu(self):
+        parts = to_parts(pd.Series(["78048H11", "78048AB1"]))
+        assert list(parts["numero"]) == ["0011", "0001"]
+
+    @pytest.mark.parametrize("ref", REFERENCES_INVALIDES)
+    def test_rejette_les_memes_references_que_le_chemin_scalaire(self, ref):
+        with pytest.raises(ReferenceCadastraleInvalide):
+            to_parts(pd.Series([ref]))
+
+    def test_isole_la_ligne_fautive_au_milieu_de_lignes_de_forme_idu(self):
+        refs = pd.Series(["780480000H0011", "78048000120123", "972150000C0302"])
+        parts = to_parts(refs, invalide="manquant")
+        assert parts.iloc[1].isna().all()
+
+    def test_epargne_les_formes_idu_qui_entourent_une_ligne_fautive(self):
+        refs = pd.Series(["780480000H0011", "78048000120123", "972150000C0302"])
+        parts = to_parts(refs, invalide="manquant")
+        assert tuple(parts.iloc[2]) == ("97215", "000", "0C", "0302")
 
 
 class TestContratDAppel:

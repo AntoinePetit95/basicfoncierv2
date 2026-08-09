@@ -1,5 +1,15 @@
 # Décisions
 
+## 2026-08-09 — Normaliser puis découper, plutôt qu'extraire
+
+**Contexte :** la première implémentation ne tenait que x2,1 contre le v1, et le profil montrait que la totalité du coût venait de l'extraction par expression régulière (740 ms sur 1 117 ms pour un million de références).
+**Retenu :** deux temps. Une référence déjà de forme idu est *reconnue* par un simple test de forme — `match_substring_regex`, qui ne capture rien — puis découpée à positions fixes. Seules les autres sont reconstruites par extraction. L'opération chère ne porte plus que sur une minorité de lignes.
+**Écarté :** l'extraction sur toute la colonne (mesurée x2,1) ; une validation par noyaux de classes de caractères plutôt que par motif (plusieurs noyaux à enchaîner, gain incertain) ; la découpe à positions fixes sans validation préalable — elle accepterait des chaînes de quatorze caractères qui ne sont pas des idu, en particulier en Alsace-Moselle où une section alphabétique est invalide.
+
+**Mesuré :** **x4,5 à x4,9** selon les exécutions — 2,2 à 2,5 millions de lignes/s contre environ 500 000 pour le v1.
+
+**Contrepartie assumée :** sur une colonne composée *uniquement* de formes courtes, le test de forme échoue à chaque ligne et ne sert à rien : le débit tombe à 819 277 lignes/s, environ 15 % de moins que l'implémentation précédente. Le pari est que les fichiers fonciers sont massivement en forme idu. S'il s'avérait faux sur un usage réel, c'est cette décision qu'il faudrait rouvrir.
+
 ## 2026-08-09 — Nouveau paquet `basicfoncierv2` dans un dépôt séparé
 
 **Contexte :** `basicfoncier` est publié sur PyPI et sert de dépendance à d'autres programmes EF. Il doit rester intact, mais son API et ses performances ne conviennent plus.

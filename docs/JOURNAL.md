@@ -1,5 +1,16 @@
 # Journal
 
+## 2026-08-09 — Chemin rapide par découpe directe sur la forme idu
+
+**Demande :** exploiter la marge de vitesse identifiée à la tâche précédente.
+**Fait :**
+- La décomposition se fait désormais en deux temps : normalisation vers la forme idu, puis découpe à positions fixes. Une référence déjà canonique n'est plus analysée par extraction, seulement reconnue.
+- Deux formes de quatorze caractères qui n'étaient pas couvertes sont maintenant testées et rejetées : sans lettre de section hors Alsace-Moselle, et avec lettre de section en Alsace-Moselle. La seconde aurait été acceptée à tort par une découpe fixe naïve.
+- Licence corrigée en Unlicense — MIT avait été posée par défaut.
+**Fichiers :** `basicfoncierv2/_internal/{motifs,decomposition_arrow}.py`, `tests/test_ref_cadastrale.py`, `LICENSE`, `pyproject.toml`, `docs/DECISIONS.md`
+**Vérifié par :** `pytest` → 65 passed ; `ruff check .` → All checks passed ; `python -m benchmarks` → 2,2 à 2,5 millions de lignes/s contre environ 500 000 pour le v1, soit **x4,5 à x4,9** selon les exécutions (contre x2,1 avant). La CI a tourné en vert sur la branche précédente.
+**À savoir :** le gain dépend de la proportion de références déjà en forme idu. Mesuré sur une colonne composée uniquement de formes courtes, le débit tombe à 819 277 lignes/s, soit environ 15 % de moins que l'implémentation précédente — contrepartie assumée, voir `docs/DECISIONS.md`.
+
 ## 2026-08-09 — Squelette du paquet et décomposition des références cadastrales
 
 **Demande :** poser le squelette du paquet et livrer la décomposition de référence cadastrale de bout en bout, vectorisée.

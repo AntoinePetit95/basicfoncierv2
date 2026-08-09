@@ -17,11 +17,18 @@ Les motifs sont écrits en groupes nommés et sans classes raccourcies (``\\d``)
 d'être compris à l'identique par le moteur RE2 de PyArrow et par le module ``re``.
 """
 
+import itertools
+
 DEPARTEMENTS_ALSACE_MOSELLE = ("57", "67", "68")
 
 CHAMPS = ("insee", "com_abs", "section", "numero")
 
 LARGEURS = {"insee": 5, "com_abs": 3, "section": 2, "numero": 4}
+
+_FINS = list(itertools.accumulate(LARGEURS[champ] for champ in CHAMPS))
+
+#: Position de chaque champ dans une référence de forme idu, déduite des largeurs.
+BORNES = {champ: (fin - LARGEURS[champ], fin) for champ, fin in zip(CHAMPS, _FINS, strict=True)}
 
 MOTIF_GENERAL = (
     r"^(?P<insee>[0-9]{5})"
@@ -36,6 +43,14 @@ MOTIF_ALSACE_MOSELLE = (
     r"(?P<section>[0-9]{2})"
     r"(?P<numero>[0-9]{4})$"
 )
+
+#: Forme idu du régime général : les quatre champs à leur largeur pleine, section
+#: se terminant par une lettre. Ne sert qu'à reconnaître — pas à extraire — les
+#: références déjà canoniques, que l'on peut alors découper à positions fixes.
+#: Le régime Alsace-Moselle en est volontairement absent : une référence de 14
+#: chiffres y est canonique, mais une référence de 14 caractères à section
+#: alphabétique n'y est pas valide, et ce motif l'accepterait.
+MOTIF_IDU_GENERAL = r"^[0-9]{8}[0-9A-Za-z][A-Za-z][0-9]{4}$"
 
 FORMAT_ATTENDU = (
     "insee (5 chiffres) + commune absorbée (3 chiffres, facultative) + "
