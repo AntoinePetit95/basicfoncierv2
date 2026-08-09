@@ -23,6 +23,30 @@ MOTIF_HA_A_CA = (
     r"(?:(?P<ca>[0-9]{1,2})\s*ca)?\s*$"
 )
 
+#: Écriture canonique — celle que produit la bibliothèque : espaces uniques, et
+#: composantes complétées sur deux chiffres dès qu'une composante supérieure est écrite.
+#: Ne sert qu'à reconnaître, pas à extraire : une écriture reconnue se découpe à
+#: positions fixes, ce qui évite le motif tolérant, bien plus coûteux.
+MOTIF_HA_A_CA_CANONIQUE = r"^(?:[0-9]+ ha [0-9]{2} a [0-9]{2}|[0-9]{1,2} a [0-9]{2}|[0-9]{1,2}) ca$"
+
+# Une écriture canonique se lit depuis la fin, ses composantes basses étant de
+# largeur fixe. Trois formes seulement, que la longueur suffit à distinguer :
+#
+#     93 ca              longueur 4 ou 5     — centiares seuls
+#     22 a 97 ca         longueur 9 ou 10    — pas d'hectares
+#     1 ha 13 a 20 ca    longueur 15 ou plus — forme complète
+#
+# Aucune écriture canonique ne tombe entre ces plages.
+LONGUEUR_MAX_CENTIARES_SEULS = 5
+LONGUEUR_MAX_SANS_HECTARES = 10
+
+#: Bornes de découpe, comptées depuis la fin de la chaîne.
+FIN_CENTIARES_SEULS = -3
+BORNES_CENTIARES = (-5, -3)
+FIN_ARES_SANS_HECTARES = -8
+BORNES_ARES = (-10, -8)
+FIN_HECTARES = -14
+
 COMPOSANTES = ("ha", "a", "ca")
 
 FACTEURS = {

@@ -4,8 +4,9 @@ Deux sens, tous deux sans boucle Python :
 
 - **écriture** — une superficie en m² se décompose en hectares, ares et centiares par
   divisions entières, puis s'assemble en chaîne par des noyaux de concaténation ;
-- **lecture** — une superficie écrite se relit par extraction des trois composantes,
-  puis recomposition arithmétique.
+- **lecture** — une écriture canonique, celle que produit ce module, se lit par
+  découpe à positions fixes après un simple test de forme. Le motif tolérant, dix
+  fois plus coûteux, ne porte que sur les écritures venues d'ailleurs.
 
 Une superficie illisible ressort nulle ; c'est à l'appelant de décider si cela vaut
 erreur. Les valeurs manquantes traversent le module sans traitement particulier.
@@ -17,14 +18,23 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from .unites import (
+    BORNES_ARES,
+    BORNES_CENTIARES,
     COMPOSANTES,
     FACTEURS,
+    FIN_ARES_SANS_HECTARES,
+    FIN_CENTIARES_SEULS,
+    FIN_HECTARES,
+    LONGUEUR_MAX_CENTIARES_SEULS,
+    LONGUEUR_MAX_SANS_HECTARES,
     METRES_CARRES_PAR_ARE,
     METRES_CARRES_PAR_HECTARE,
     MOTIF_HA_A_CA,
+    MOTIF_HA_A_CA_CANONIQUE,
 )
 
 _NUL_ENTIER = pa.scalar(None, type=pa.int64())
+_NUL_TEXTE = pa.scalar(None, type=pa.string())
 
 
 def en_metres_carres_entiers(superficies: pa.Array) -> pa.Array:
@@ -81,30 +91,85 @@ def formater(metres_carres: pa.Array) -> pa.Array:
     )
 
 
-def lire(textes: pa.Array) -> pa.Array:
-    """Relit une colonne de superficies écrites et renvoie des mètres carrés.
+def _recomposer(composantes: dict[str, pa.Array]) -> pa.Array:
+    """Additionne les trois composantes, converties en mètres carrés."""
+    entieres = {nom: pc.cast(valeur, pa.int64()) for nom, valeur in composantes.items()}
+    return pc.add(
+        pc.add(
+            pc.multiply(entieres["ha"], FACTEURS["ha"]),
+            pc.multiply(entieres["a"], FACTEURS["a"]),
+        ),
+        entieres["ca"],
+    )
 
-    Une chaîne qui ne correspond pas au format, ou qui ne porte aucune composante,
-    ressort nulle : les trois groupes du motif étant facultatifs, il accepterait sinon
-    une chaîne vide.
+
+def _lire_par_decoupe(textes: pa.Array, canoniques: pa.Array) -> pa.Array:
+    """Lit les écritures canoniques à positions fixes, comptées depuis la fin.
+
+    Les autres lignes — et les valeurs absentes — ressortent nulles : c'est ce qui
+    désigne ensuite les lignes à reprendre par le motif tolérant.
+    """
+    longueurs = pc.utf8_length(textes)
+    centiares_seuls = pc.less_equal(longueurs, LONGUEUR_MAX_CENTIARES_SEULS)
+    sans_hectares = pc.less_equal(longueurs, LONGUEUR_MAX_SANS_HECTARES)
+
+    decoupes = {
+        "ca": pc.if_else(
+            centiares_seuls,
+            pc.utf8_slice_codeunits(textes, 0, FIN_CENTIARES_SEULS),
+            pc.utf8_slice_codeunits(textes, *BORNES_CENTIARES),
+        ),
+        "a": pc.if_else(
+            centiares_seuls,
+            "0",
+            pc.if_else(
+                sans_hectares,
+                pc.utf8_slice_codeunits(textes, 0, FIN_ARES_SANS_HECTARES),
+                pc.utf8_slice_codeunits(textes, *BORNES_ARES),
+            ),
+        ),
+        "ha": pc.if_else(sans_hectares, "0", pc.utf8_slice_codeunits(textes, 0, FIN_HECTARES)),
+    }
+    retenues = {nom: pc.if_else(canoniques, valeur, _NUL_TEXTE) for nom, valeur in decoupes.items()}
+    return _recomposer(retenues)
+
+
+def _lire_par_motif(textes: pa.Array) -> pa.Array:
+    """Lit des écritures quelconques par extraction, motif tolérant aux espaces.
+
+    Une chaîne qui ne porte aucune composante ressort nulle : les trois groupes du
+    motif étant facultatifs, il accepterait sinon une chaîne vide.
     """
     groupes = pc.extract_regex(textes, pattern=MOTIF_HA_A_CA)
     brutes = {nom: pc.struct_field(groupes, nom) for nom in COMPOSANTES}
     absentes = {nom: pc.equal(valeur, "") for nom, valeur in brutes.items()}
-    lues = {
-        nom: pc.cast(pc.if_else(absentes[nom], "0", brutes[nom]), pa.int64()) for nom in COMPOSANTES
-    }
-
-    metres_carres = pc.add(
-        pc.add(
-            pc.multiply(lues["ha"], FACTEURS["ha"]),
-            pc.multiply(lues["a"], FACTEURS["a"]),
-        ),
-        lues["ca"],
-    )
+    presentes = {nom: pc.if_else(absentes[nom], "0", brutes[nom]) for nom in COMPOSANTES}
 
     aucune_composante = pc.and_(absentes["ha"], pc.and_(absentes["a"], absentes["ca"]))
-    return pc.if_else(aucune_composante, _NUL_ENTIER, metres_carres)
+    return pc.if_else(aucune_composante, _NUL_ENTIER, _recomposer(presentes))
+
+
+def lire(textes: pa.Array) -> pa.Array:
+    """Relit une colonne de superficies écrites et renvoie des mètres carrés.
+
+    Les écritures canoniques — celles que produit :func:`formater`, donc l'essentiel
+    d'une colonne déjà passée par la bibliothèque — se lisent par découpe. Le motif
+    tolérant, dix fois plus coûteux, ne porte que sur le reste.
+
+    Une écriture illisible ressort nulle, tout comme une valeur absente.
+    """
+    canoniques = pc.fill_null(
+        pc.match_substring_regex(textes, pattern=MOTIF_HA_A_CA_CANONIQUE), False
+    )
+    metres_carres = _lire_par_decoupe(textes, canoniques)
+
+    a_relire = pc.and_(pc.is_valid(textes), pc.invert(canoniques))
+    if not pc.any(a_relire).as_py():
+        return metres_carres
+
+    return pc.replace_with_mask(
+        metres_carres, a_relire, _lire_par_motif(pc.filter(textes, a_relire))
+    )
 
 
 def positions_illisibles(textes: pa.Array, metres_carres: pa.Array) -> pa.Array:

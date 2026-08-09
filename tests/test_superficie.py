@@ -121,6 +121,43 @@ class TestLecture:
             from_ha_a_ca(superficies)
 
 
+class TestMelangeDEcritures:
+    """La lecture emprunte deux chemins selon la forme : ils doivent se recoller.
+
+    Une écriture canonique est découpée à positions fixes ; toute autre passe par le
+    motif tolérant. Ces tests vérifient que le mélange ne décale ni ne mélange les lignes.
+    """
+
+    def test_lit_une_ecriture_toleree_placee_apres_une_canonique(self):
+        assert list(from_ha_a_ca(pd.Series(["1 ha 13 a 20 ca", "1 a 5 ca"]))) == [11_320, 105]
+
+    def test_lit_une_ecriture_canonique_placee_apres_une_toleree(self):
+        assert list(from_ha_a_ca(pd.Series(["1 a 5 ca", "1 ha 13 a 20 ca"]))) == [105, 11_320]
+
+    def test_conserve_l_ordre_quand_les_formes_alternent(self):
+        ecrites = pd.Series(["93 ca", "1 a 5 ca", "1 ha 13 a 20 ca", "22 a 97 ca", "5 ha"])
+        assert list(from_ha_a_ca(ecrites)) == [93, 105, 11_320, 2297, 50_000]
+
+    def test_ne_decoupe_pas_une_ecriture_qui_ressemble_a_la_forme_canonique(self):
+        """« 1 a 4 ca » a la longueur d'une forme canonique sans en être une."""
+        assert from_ha_a_ca(pd.Series(["1 a 4 ca"])).iloc[0] == 104
+
+    def test_isole_une_ligne_illisible_entre_deux_canoniques(self):
+        ecrites = pd.Series(["93 ca", "abc", "22 a 97 ca"])
+        relues = from_ha_a_ca(ecrites, invalide="manquant")
+        assert list(relues.isna()) == [False, True, False]
+
+    def test_propage_une_valeur_absente_au_milieu_de_canoniques(self):
+        relues = from_ha_a_ca(pd.Series(["93 ca", None, "22 a 97 ca"]))
+        assert list(relues.isna()) == [False, True, False]
+
+    def test_lit_une_colonne_entierement_canonique(self):
+        assert list(from_ha_a_ca(pd.Series(["93 ca", "22 a 97 ca"]))) == [93, 2297]
+
+    def test_lit_une_colonne_sans_aucune_forme_canonique(self):
+        assert list(from_ha_a_ca(pd.Series(["1 a 5 ca", "1ha13a20ca"]))) == [105, 11_320]
+
+
 class TestHectares:
     def test_convertit_des_metres_carres_en_hectares(self):
         assert to_hectares(11_320) == pytest.approx(1.132)

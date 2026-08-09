@@ -1,5 +1,17 @@
 # Décisions
 
+## 2026-08-09 — Lire les superficies par découpe, le motif en secours
+
+**Contexte :** la lecture `ha a ca` était **plus lente que le v1** (x0,6). Le profil désignait un seul coupable : le motif tolérant coûtait 1 103 ms sur 1 254, dont 512 pour les `\s*` qui acceptent les espaces multiples. Cette tolérance est nécessaire — les données du v1 en contiennent — donc la retirer était exclu.
+
+**Retenu :** le même schéma que pour les références. Une écriture canonique est *reconnue* par `match_substring_regex` (145 ms, aucune capture), puis découpée à positions fixes comptées depuis la fin. Trois formes seulement, que la longueur suffit à distinguer sans ambiguïté — aucune écriture canonique ne tombe entre les plages 4-5, 9-10 et 15 et plus. Le motif tolérant ne porte plus que sur les lignes non reconnues.
+
+**Écarté :** `extract_regex` avec un motif canonique nommé (581 ms mesurés, contre 400 pour la découpe, et il aurait fallu fusionner six groupes en trois) ; un découpage par `utf8_split_whitespace` (377 ms pour le seul découpage, et `list_element` échoue dès que les listes n'ont pas toutes la même longueur) ; un motif strict unique, qui aurait cassé la lecture des données du v1.
+
+**Mesuré :** lecture **x1,5** contre le v1 — 2 394 228 lignes/s contre 1 619 601, là où le v2 était à x0,6.
+
+**Contrepartie, mesurée elle aussi :** sur une colonne sans **aucune** écriture canonique, le total est de 1 236 ms contre 1 254 pour l'implémentation précédente. Le test de forme et les découpes inutiles se paient donc à peu près exactement ce que le motif économise sur un jeu plus court. Le chemin rapide ne coûte rien quand il ne sert pas — c'est ce qui rend le pari sans risque, contrairement à celui pris sur les références, qui perd 15 % dans son cas défavorable.
+
 ## 2026-08-09 — La forme idu comme pivot de tout le module
 
 **Contexte :** cinq fonctions publiques manipulent la même référence sous trois formes — champs séparés, idu, identifiant court. Six conversions possibles, donc six occasions de diverger.

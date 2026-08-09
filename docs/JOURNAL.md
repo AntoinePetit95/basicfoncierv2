@@ -1,5 +1,15 @@
 # Journal
 
+## 2026-08-09 — Lecture rapide des superficies
+
+**Demande :** accélérer `from_ha_a_ca`, plus lente que le v1 à sa livraison.
+**Fait :**
+- Une écriture canonique est reconnue par un simple test de forme puis découpée à positions fixes ; le motif tolérant ne porte plus que sur le reste.
+- Huit tests ajoutés sur le recollage des deux chemins, dont `1 a 4 ca` : la longueur d'une forme canonique sans en être une.
+**Fichiers :** `basicfoncierv2/_internal/{unites,superficie_arrow}.py`, `tests/test_superficie.py`, `docs/DECISIONS.md`
+**Vérifié par :** `pytest` → 250 passed ; `ruff check .` → All checks passed ; `python -m benchmarks` → lecture 2 394 228 lignes/s contre 1 619 601 pour le v1, soit **x1,5** (x0,6 avant).
+**À savoir :** le gain vient d'un test de forme à 145 ms qui remplace un motif à 1 103 ms. Sur une colonne sans aucune écriture canonique, le total reste celui de l'implémentation précédente (1 236 ms contre 1 254) : le chemin rapide ne coûte rien quand il ne sert pas.
+
 ## 2026-08-09 — Module des superficies
 
 **Demande :** livrer `superficie` après `ref_cadastrale`.
