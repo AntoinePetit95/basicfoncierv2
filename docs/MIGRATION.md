@@ -1,9 +1,15 @@
 # Migrer de `basicfoncier` vers `basicfoncierv2`
 
-> **État : squelette.** La colonne « v2 » est une *proposition* de nommage, figée lors de la
-> conception de l'API. Ne pas s'appuyer dessus tant que le paquet n'est pas publié.
+> **État partiel.** Les références cadastrales sont livrées et leurs noms sont figés.
+> Pour `superficie` et `commune`, la colonne « v2 » reste une *proposition* : ne pas s'appuyer
+> dessus tant que ces modules ne sont pas écrits.
 > Ce fichier est mis à jour dans la même tâche que toute création, tout renommage ou toute
 > suppression d'une fonction publique (CLAUDE.md §5).
+
+> ⚠️ **Piège d'appel positionnel.** `idu_from_parts` et `short_id_from_parts` prennent
+> désormais leurs arguments dans l'ordre `(insee, com_abs, section, numero)`. Le v1 les
+> prenait dans l'ordre `(insee, section, numero, com_abs)`. **Un appel positionnel recopié
+> tel quel produit une référence fausse sans lever d'erreur.** Relisez chaque appel.
 
 `basicfoncier` reste publié et fonctionnel. Aucune version de ce paquet ne sera retirée ni modifiée : la migration est volontaire et peut se faire module par module.
 
@@ -20,12 +26,17 @@
 
 | v1 | v2 (proposé) | Note |
 |---|---|---|
-| `ref_cadastrales.idu_from_parts` | `ref_cadastrale.idu_from_parts` | |
-| `ref_cadastrales.short_id_from_parts` | `ref_cadastrale.short_id_from_parts` | |
-| `ref_cadastrales.ref_parcelle_to_parts` | `ref_cadastrale.to_parts` | **livré.** Ordre figé : `(insee, com_abs, section, numero)`. Voir ci-dessous |
-| `ref_cadastrales.ref_parcelle_to_idu` | `ref_cadastrale.to_idu` | **cassée dans le v1**, voir ci-dessous |
-| `ref_cadastrales.ref_parcelle_to_short_id` | `ref_cadastrale.to_short_id` | **cassée dans le v1**, voir ci-dessous |
+| `ref_cadastrales.idu_from_parts` | `ref_cadastrale.idu_from_parts` | livré — **ordre des arguments changé**, voir l'avertissement en tête |
+| `ref_cadastrales.short_id_from_parts` | `ref_cadastrale.short_id_from_parts` | livré — même changement d'ordre |
+| `ref_cadastrales.ref_parcelle_to_parts` | `ref_cadastrale.to_parts` | livré. Ordre figé : `(insee, com_abs, section, numero)` |
+| `ref_cadastrales.ref_parcelle_to_idu` | `ref_cadastrale.to_idu` | livré — **cassée dans le v1**, voir plus bas |
+| `ref_cadastrales.ref_parcelle_to_short_id` | `ref_cadastrale.to_short_id` | livré — **cassée dans le v1**, voir plus bas |
 | `vectorized_functions.for_pandas.functions.*` | *(supprimé)* | passer une `Series` à la fonction du même nom |
+
+**Le module des références cadastrales est complet.** Deux différences de comportement en plus du changement d'ordre :
+
+- **Alsace-Moselle.** `to_short_id` y renvoie la forme idu inchangée : les sections y étant numériques, une référence raccourcie ne serait plus décomposable. Le v1 la raccourcissait quand même, produisant des identifiants que sa propre fonction de lecture rejette.
+- **Zéros de la section.** Le v1 retire *tous* les zéros de la section (`section.replace("0", "")`), ce qui transforme aussi `A0` en `A`. Le v2 ne retire que les zéros de tête.
 
 ### Superficies
 
@@ -52,13 +63,25 @@
 | `utils.string_manipulation.first_car_numeric` | *(supprimé)* | idem |
 | `utils.adresse.adresse` | *(à trancher)* | hors périmètre cadastral ; à conserver ou à sortir |
 
-## `to_parts` — la seule fonction livrée à ce jour
+## Les fonctions livrées
 
 ```python
-from basicfoncierv2.ref_cadastrale import to_parts
+from basicfoncierv2.ref_cadastrale import (
+    idu_from_parts,
+    short_id_from_parts,
+    to_idu,
+    to_parts,
+    to_short_id,
+)
 
 to_parts("78048H11")  # ('78048', '000', '0H', '0011')
+to_idu("78048H11")  # '780480000H0011'
+to_short_id("780480000H0011")  # '78048H11'
+idu_from_parts("78048", "000", "0H", "0011")  # '780480000H0011'
+short_id_from_parts("78048", "000", "0H", "0011")  # '78048H11'
+
 to_parts(df["idu"])  # DataFrame : insee, com_abs, section, numero
+to_idu(df["ref"])  # Series
 to_parts(df["idu"], invalide="manquant")  # les références illisibles deviennent <NA>
 ```
 

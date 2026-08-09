@@ -23,25 +23,15 @@ from __future__ import annotations
 import pyarrow as pa
 import pyarrow.compute as pc
 
+from .arrow_commun import Colonnes, masque_alsace_moselle
+from .composition_arrow import en_idu
 from .motifs import (
     BORNES,
     CHAMPS,
-    DEPARTEMENTS_ALSACE_MOSELLE,
-    LARGEURS,
     MOTIF_ALSACE_MOSELLE,
     MOTIF_GENERAL,
     MOTIF_IDU_GENERAL,
 )
-
-_PREFIXES_ALSACE_MOSELLE = pa.array(DEPARTEMENTS_ALSACE_MOSELLE, type=pa.string())
-
-Colonnes = dict[str, pa.ChunkedArray | pa.Array]
-
-
-def _masque_alsace_moselle(refs: pa.Array) -> pa.Array:
-    """Vrai là où le département est 57, 67 ou 68."""
-    departements = pc.utf8_slice_codeunits(refs, 0, 2)
-    return pc.is_in(departements, value_set=_PREFIXES_ALSACE_MOSELLE)
 
 
 def _deja_canoniques(refs: pa.Array) -> pa.Array:
@@ -51,7 +41,7 @@ def _deja_canoniques(refs: pa.Array) -> pa.Array:
     ses références étant reconnues par un autre motif.
     """
     forme_idu = pc.match_substring_regex(refs, pattern=MOTIF_IDU_GENERAL)
-    hors_alsace_moselle = pc.invert(_masque_alsace_moselle(refs))
+    hors_alsace_moselle = pc.invert(masque_alsace_moselle(refs))
     return pc.fill_null(pc.and_(forme_idu, hors_alsace_moselle), False)
 
 
@@ -69,35 +59,14 @@ def _choisir(masque: pa.Array, si_vrai: Colonnes, si_faux: Colonnes) -> Colonnes
     return {champ: pc.if_else(masque, si_vrai[champ], si_faux[champ]) for champ in CHAMPS}
 
 
-def _completer_zeros(colonnes: Colonnes) -> Colonnes:
-    """Ramène chaque champ à sa largeur canonique par des zéros à gauche.
-
-    Sert aussi à normaliser la commune absorbée : le motif général la rend facultative,
-    et PyArrow restitue une chaîne vide quand le groupe n'a pas participé — que ce
-    complément transforme en ``000``.
-    """
-    return {
-        champ: pc.utf8_lpad(valeurs, LARGEURS[champ], padding="0")
-        for champ, valeurs in colonnes.items()
-    }
-
-
-def _recoller(colonnes: Colonnes) -> pa.Array:
-    """Rassemble les quatre champs en une référence de forme idu.
-
-    Un champ nul rend la référence nulle : une référence à moitié décomposée n'existe pas.
-    """
-    return pc.binary_join_element_wise(*(colonnes[champ] for champ in CHAMPS), "")
-
-
 def _canoniser_par_motif(refs: pa.Array) -> pa.Array:
     """Reconstruit la forme idu des références qui ne l'ont pas déjà, par extraction."""
     par_regime = _choisir(
-        _masque_alsace_moselle(refs),
+        masque_alsace_moselle(refs),
         _extraire(refs, MOTIF_ALSACE_MOSELLE),
         _extraire(refs, MOTIF_GENERAL),
     )
-    return _recoller(_completer_zeros(par_regime))
+    return en_idu(par_regime)
 
 
 def normaliser(refs: pa.Array) -> pa.Array:
@@ -116,7 +85,7 @@ def normaliser(refs: pa.Array) -> pa.Array:
     return pc.replace_with_mask(refs, a_normaliser, reconstruites)
 
 
-def _decouper(canoniques: pa.Array) -> Colonnes:
+def decouper(canoniques: pa.Array) -> Colonnes:
     """Lit les quatre champs à leurs positions fixes dans une référence de forme idu."""
     return {
         champ: pc.utf8_slice_codeunits(canoniques, debut, fin)
@@ -130,13 +99,13 @@ def decomposer(refs: pa.Array) -> Colonnes:
     :param refs: colonne Arrow de chaînes
     :return: un dictionnaire ``insee``, ``com_abs``, ``section``, ``numero``
     """
-    return _decouper(normaliser(refs))
+    return decouper(normaliser(refs))
 
 
-def positions_invalides(refs: pa.Array, colonnes: Colonnes) -> pa.Array:
+def positions_invalides(refs: pa.Array, canoniques: pa.Array) -> pa.Array:
     """Vrai là où une référence était présente mais n'a correspondu à aucun motif.
 
-    Distingue l'échec de décomposition de la valeur simplement absente en entrée :
+    Distingue l'échec de normalisation de la valeur simplement absente en entrée :
     seul le premier est une donnée invalide.
     """
-    return pc.and_(pc.is_valid(refs), pc.is_null(colonnes["insee"]))
+    return pc.and_(pc.is_valid(refs), pc.is_null(canoniques))

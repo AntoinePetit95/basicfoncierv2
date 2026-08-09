@@ -4,7 +4,13 @@ import pandas as pd
 import pytest
 
 from basicfoncierv2 import ReferenceCadastraleInvalide
-from basicfoncierv2.ref_cadastrale import to_parts
+from basicfoncierv2.ref_cadastrale import (
+    idu_from_parts,
+    short_id_from_parts,
+    to_idu,
+    to_parts,
+    to_short_id,
+)
 
 # Références valides couvrant toutes les formes acceptées, avec leur décomposition
 # canonique (insee, com_abs, section, numero). Sert aux deux chemins d'exécution.
@@ -35,6 +41,135 @@ REFERENCES_INVALIDES = [
     "78048000120123",
     "57463000AB1234",
 ]
+
+
+# Chaque référence valide avec sa forme idu et son identifiant court.
+FORMES = [
+    ("780480000H0011", "780480000H0011", "78048H11"),
+    ("78048000H11", "780480000H0011", "78048H11"),
+    ("78048H11", "780480000H0011", "78048H11"),
+    ("780480H11", "780480000H0011", "78048H11"),
+    ("78048123AB1", "78048123AB0001", "78048123AB1"),
+    ("78048AB1234", "78048000AB1234", "78048AB1234"),
+    ("972150000C0302", "972150000C0302", "97215C302"),
+    ("57463123456789", "57463123456789", "57463123456789"),
+]
+
+
+class TestFormeIdu:
+    @pytest.mark.parametrize(("ref", "idu", "_court"), FORMES)
+    def test_ramene_une_chaine_a_sa_forme_idu(self, ref, idu, _court):
+        assert to_idu(ref) == idu
+
+    @pytest.mark.parametrize(("ref", "idu", "_court"), FORMES)
+    def test_donne_le_meme_resultat_sur_une_colonne(self, ref, idu, _court):
+        assert to_idu(pd.Series([ref])).iloc[0] == idu
+
+    def test_produit_toujours_quatorze_caracteres(self):
+        assert {len(to_idu(ref)) for ref, _, _ in FORMES} == {14}
+
+    def test_conserve_l_index_de_la_colonne(self):
+        refs = pd.Series(["78048H11", "78048AB1234"], index=["a", "b"])
+        assert list(to_idu(refs).index) == ["a", "b"]
+
+    def test_propage_une_valeur_absente(self):
+        assert pd.isna(to_idu(pd.Series(["78048H11", None])).iloc[1])
+
+    def test_leve_une_erreur_metier_sur_une_reference_illisible(self):
+        with pytest.raises(ReferenceCadastraleInvalide):
+            to_idu("AB048H11")
+
+    def test_renvoie_une_valeur_manquante_quand_l_appelant_le_demande(self):
+        assert pd.isna(to_idu("AB048H11", invalide="manquant"))
+
+
+class TestIdentifiantCourt:
+    @pytest.mark.parametrize(("ref", "_idu", "court"), FORMES)
+    def test_reduit_une_chaine_a_son_identifiant_court(self, ref, _idu, court):
+        assert to_short_id(ref) == court
+
+    @pytest.mark.parametrize(("ref", "_idu", "court"), FORMES)
+    def test_donne_le_meme_resultat_sur_une_colonne(self, ref, _idu, court):
+        assert to_short_id(pd.Series([ref])).iloc[0] == court
+
+    def test_omet_la_commune_absorbee_quand_elle_est_absente(self):
+        assert to_short_id("780480000H0011") == "78048H11"
+
+    def test_conserve_la_commune_absorbee_quand_elle_est_presente(self):
+        assert to_short_id("78048123AB0001") == "78048123AB1"
+
+    def test_laisse_une_reference_d_alsace_moselle_sous_forme_idu(self):
+        """Ses sections étant numériques, une forme courte y serait illisible."""
+        assert to_short_id("57463123456789") == "57463123456789"
+
+    def test_garde_un_chiffre_quand_le_numero_ne_vaut_que_des_zeros(self):
+        assert to_short_id("780480000H0000") == "78048H0"
+
+    def test_propage_une_valeur_absente(self):
+        assert pd.isna(to_short_id(pd.Series(["78048H11", None])).iloc[1])
+
+    def test_leve_une_erreur_metier_sur_une_reference_illisible(self):
+        with pytest.raises(ReferenceCadastraleInvalide):
+            to_short_id("AB048H11")
+
+
+class TestAllerRetour:
+    """Toute forme produite doit rester lisible : c'est la propriété qui compte."""
+
+    @pytest.mark.parametrize(("ref", "_idu", "_court"), FORMES)
+    def test_la_forme_idu_se_decompose_comme_la_reference_d_origine(self, ref, _idu, _court):
+        assert to_parts(to_idu(ref)) == to_parts(ref)
+
+    @pytest.mark.parametrize(("ref", "_idu", "_court"), FORMES)
+    def test_l_identifiant_court_se_decompose_comme_la_reference_d_origine(self, ref, _idu, _court):
+        assert to_parts(to_short_id(ref)) == to_parts(ref)
+
+    @pytest.mark.parametrize(("ref", "idu", "_court"), FORMES)
+    def test_les_champs_reassembles_redonnent_la_forme_idu(self, ref, idu, _court):
+        assert idu_from_parts(*to_parts(ref)) == idu
+
+    @pytest.mark.parametrize(("ref", "_idu", "court"), FORMES)
+    def test_les_champs_reassembles_redonnent_l_identifiant_court(self, ref, _idu, court):
+        assert short_id_from_parts(*to_parts(ref)) == court
+
+
+class TestAssemblageDepuisLesChamps:
+    def test_complete_les_champs_de_zeros_a_gauche(self):
+        assert idu_from_parts("78048", "0", "H", "11") == "780480000H0011"
+
+    def test_prend_les_champs_dans_l_ordre_insee_com_abs_section_numero(self):
+        assert idu_from_parts("78048", "123", "AB", "1") == "78048123AB0001"
+
+    def test_assemble_une_colonne_par_champ(self):
+        parts = to_parts(pd.Series(["78048H11", "78048123AB1"]))
+        assemblees = idu_from_parts(*(parts[champ] for champ in parts.columns))
+        assert list(assemblees) == ["780480000H0011", "78048123AB0001"]
+
+    def test_assemble_l_identifiant_court_depuis_des_colonnes(self):
+        parts = to_parts(pd.Series(["780480000H0011"]))
+        courts = short_id_from_parts(*(parts[champ] for champ in parts.columns))
+        assert courts.iloc[0] == "78048H11"
+
+    def test_refuse_des_champs_qui_n_assemblent_pas_une_reference_lisible(self):
+        with pytest.raises(ReferenceCadastraleInvalide):
+            idu_from_parts("78048", "000", "00", "0011")
+
+    def test_refuse_un_champ_plus_long_que_sa_largeur(self):
+        with pytest.raises(ReferenceCadastraleInvalide):
+            idu_from_parts("78048", "000", "0H", "12345")
+
+    def test_refuse_de_melanger_chaines_et_colonnes(self):
+        with pytest.raises(TypeError, match=r"tous des pandas\.Series"):
+            idu_from_parts("78048", "000", "0H", pd.Series(["0011"]))
+
+    def test_refuse_des_colonnes_mal_alignees(self):
+        with pytest.raises(ValueError, match="alignée"):
+            idu_from_parts(
+                pd.Series(["78048"], index=["a"]),
+                pd.Series(["000"], index=["b"]),
+                pd.Series(["0H"], index=["a"]),
+                pd.Series(["0011"], index=["a"]),
+            )
 
 
 class TestDecompositionScalaire:

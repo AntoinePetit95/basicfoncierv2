@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from basicfoncierv2.ref_cadastrale import to_parts
+from basicfoncierv2.ref_cadastrale import to_idu, to_parts, to_short_id
 
 CHEMIN_V1_PAR_DEFAUT = Path(__file__).resolve().parents[2] / "basicfoncier"
 LIGNES_PAR_DEFAUT = 1_000_000
@@ -81,7 +81,7 @@ def charger_v1(chemin: Path) -> Callable[[pd.Series], object] | None:
 def rapporter(nom: str, lignes: int, duree: float) -> float:
     """Affiche une ligne de résultat et renvoie le débit en lignes par seconde."""
     debit = lignes / duree
-    print(f"  {nom:<28} {duree:8.3f} s   {debit:14,.0f} lignes/s".replace(",", " "))
+    print(f"  {nom:<30} {duree:8.3f} s   {debit:14,.0f} lignes/s".replace(",", " "))
     return debit
 
 
@@ -91,7 +91,13 @@ def executer(lignes: int, chemin_v1: Path) -> None:
     refs = generer_references(lignes)
 
     print("\nDébit mesuré (meilleur de 3) :")
-    debit_v2 = rapporter("basicfoncierv2 (Arrow)", lignes, mesurer(lambda: to_parts(refs)))
+    debit_v2 = rapporter("basicfoncierv2 — to_parts", lignes, mesurer(lambda: to_parts(refs)))
+    rapporter("basicfoncierv2 — to_idu", lignes, mesurer(lambda: to_idu(refs)))
+    rapporter("basicfoncierv2 — to_short_id", lignes, mesurer(lambda: to_short_id(refs)))
+    print(
+        "\n  Les équivalents v1 de to_idu et to_short_id renvoient une valeur fausse ou\n"
+        "  lèvent une exception (docs/BUGS.md) : les comparer n'aurait pas de sens."
+    )
 
     decomposer_v1 = charger_v1(chemin_v1)
     if decomposer_v1 is None:

@@ -1,5 +1,25 @@
 # Décisions
 
+## 2026-08-09 — La forme idu comme pivot de tout le module
+
+**Contexte :** cinq fonctions publiques manipulent la même référence sous trois formes — champs séparés, idu, identifiant court. Six conversions possibles, donc six occasions de diverger.
+
+**Retenu :** une seule route. Toute entrée est d'abord normalisée vers la forme idu, puis découpée ou raccourcie. `idu_from_parts` et `short_id_from_parts` assemblent leurs champs puis repassent par `to_idu`. La normalisation valide au passage : une référence illisible ne franchit jamais la première étape, et il n'existe pas de second endroit où la validité serait jugée.
+
+**Conséquence acceptée :** `short_id_from_parts` fait un aller-retour — assemblage, puis relecture. C'est un coût réel, choisi contre la garantie que toute forme produite est relisible. Cette garantie est testée comme propriété : `to_parts(to_short_id(x)) == to_parts(x)` pour chaque forme couverte.
+
+**Écarté :** une fonction de conversion par couple de formes (plus direct, mais la validité se serait jugée en six endroits — c'est exactement ainsi que le v1 a divergé entre ses deux branches de régime).
+
+**Rupture assumée vis-à-vis du v1 :** `idu_from_parts` prend ses arguments dans l'ordre canonique `(insee, com_abs, section, numero)`. Le v1 les prenait dans l'ordre `(insee, section, numero, com_abs)`, avec `com_abs` par défaut. Un appel positionnel du v1 recopié tel quel produirait une référence fausse sans erreur — signalé en tête de `MIGRATION.md`.
+
+## 2026-08-09 — Pas d'identifiant court en Alsace-Moselle
+
+**Contexte :** l'identifiant court retire les zéros de tête de la section et du numéro. En Alsace-Moselle, les sections sont numériques : `to_short_id("57463123456789")` produirait `57463123456789` → `574631234` en appliquant la même règle, et plus rien ne dirait où finit la section.
+
+**Retenu :** en Alsace-Moselle, `to_short_id` renvoie la forme idu inchangée.
+
+**Écarté :** lever une erreur (l'appelant qui raccourcit une colonne entière n'a pas à savoir quels départements elle contient) ; appliquer la règle générale — le v1 le fait, et produit des identifiants que sa propre fonction de lecture rejette.
+
 ## 2026-08-09 — Plancher de compatibilité à pandas 2.1.4
 
 **Contexte :** `pandas>=3.0.0` avait été déclaré parce que c'était la seule version testée. C'est une borne dure : elle exclut tout consommateur épinglé sur pandas 2.x. La suite a donc été exécutée contre chaque série mineure, dans des environnements isolés.

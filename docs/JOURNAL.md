@@ -1,5 +1,16 @@
 # Journal
 
+## 2026-08-09 — Forme idu, identifiant court et assemblage depuis les champs
+
+**Demande :** compléter `ref_cadastrale` avec les quatre fonctions restantes du v1.
+**Fait :**
+- `to_idu`, `to_short_id`, `idu_from_parts`, `short_id_from_parts`, chacune acceptant une chaîne ou une colonne. Les deux premières remplacent des fonctions **cassées** dans le v1.
+- Toutes passent par la forme idu, qui sert de pivot et de point de validation unique. Les propriétés d'aller-retour sont testées : toute forme produite se décompose comme la référence d'origine.
+- Primitives Arrow réorganisées en trois modules internes : `arrow_commun`, `composition_arrow`, `decomposition_arrow`.
+**Fichiers :** `basicfoncierv2/ref_cadastrale.py`, `basicfoncierv2/_internal/{arrow_commun,composition_arrow,decomposition_arrow}.py`, `tests/test_ref_cadastrale.py`, `benchmarks/__main__.py`, `docs/{DECISIONS,MIGRATION}.md`
+**Vérifié par :** `pytest` → 148 passed ; `ruff check .` → All checks passed ; `python -m benchmarks` → to_parts 2 312 980 lignes/s (x5,6 contre le v1), to_idu 3 380 100, to_short_id 1 015 077.
+**À savoir :** `idu_from_parts` change l'ordre de ses arguments par rapport au v1. Un appel positionnel recopié tel quel produit une référence fausse **sans lever d'erreur** — c'est le piège de migration le plus dangereux à ce jour, signalé en tête de `MIGRATION.md`. `to_short_id` est trois fois plus lent que `to_idu` : il fait un aller-retour d'assemblage puis de relecture, choisi pour garantir que toute forme produite reste lisible.
+
 ## 2026-08-09 — Élargissement des bornes de dépendances
 
 **Demande :** élargir la compatibilité pandas, dans la mesure du raisonnable.
