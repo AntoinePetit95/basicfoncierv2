@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "basicfoncierv2"
+version = "0.0.1"
+description = "Références cadastrales et superficies foncières, vectorisées sur pandas"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "Antoine PETIT", email = "antoine.petit@energie-fonciere.fr" }]
+keywords = ["foncier", "cadastre", "parcelle", "pandas"]
+dependencies = [
+    "pandas>=3.0.0",
+    "numpy>=2.0",
+    "pyarrow>=15.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.urls]
+Repository = "https://github.com/AntoinePetit95/basicfoncierv2"
+
+[tool.setuptools.packages.find]
+include = ["basicfoncierv2*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
