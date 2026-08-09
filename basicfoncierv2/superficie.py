@@ -6,6 +6,7 @@ seule ou une colonne pandas, et renvoie le résultat de même nature.
 
 from __future__ import annotations
 
+import numbers
 import re
 
 import pandas as pd
@@ -15,6 +16,7 @@ import pyarrow.compute as pc
 from ._internal.appel import (
     NOMBRE_EXEMPLES,
     SurInvalide,
+    en_colonne_arrow,
     en_serie,
     erreur_de_type,
     exemples_fautifs,
@@ -41,6 +43,12 @@ from .erreurs import SuperficieInvalide
 
 _HA_A_CA_COMPILE = re.compile(MOTIF_HA_A_CA)
 
+#: Ce que l'appelant peut faire d'une colonne qui n'est pas textuelle.
+_CONSEIL_TEXTE = (
+    "from_ha_a_ca relit une superficie écrite — « 1 ha 13 a 20 ca » ; pour convertir "
+    "une colonne de mètres carrés, c'est to_ha_a_ca qu'il faut appeler."
+)
+
 
 # --------------------------------------------------------------------------------------
 # API publique
@@ -63,9 +71,9 @@ def to_hectares(
 
     if isinstance(superficie, pd.Series):
         metres_carres = _metres_carres_depuis_colonne(superficie, invalide)
-        return en_serie(pc.divide(pc.cast(metres_carres, pa.float64()), 10_000.0), superficie.index)
-    if isinstance(superficie, bool) or not isinstance(superficie, int | float):
-        raise erreur_de_type(superficie, "un nombre ou une pandas.Series")
+        hectares = pc.divide(pc.cast(metres_carres, pa.float64()), float(METRES_CARRES_PAR_HECTARE))
+        return en_serie(hectares, superficie.index)
+    _refuser_non_nombre(superficie)
 
     metres_carres = _metres_carres_depuis_nombre(superficie, invalide)
     return pd.NA if pd.isna(metres_carres) else metres_carres / METRES_CARRES_PAR_HECTARE
@@ -90,8 +98,7 @@ def to_ha_a_ca(
     if isinstance(superficie, pd.Series):
         metres_carres = _metres_carres_depuis_colonne(superficie, invalide)
         return en_serie(formater(metres_carres), superficie.index)
-    if isinstance(superficie, bool) or not isinstance(superficie, int | float):
-        raise erreur_de_type(superficie, "un nombre ou une pandas.Series")
+    _refuser_non_nombre(superficie)
 
     metres_carres = _metres_carres_depuis_nombre(superficie, invalide)
     return pd.NA if pd.isna(metres_carres) else _formater_nombre(metres_carres)
@@ -126,6 +133,17 @@ def from_ha_a_ca(
 # --------------------------------------------------------------------------------------
 
 
+def _refuser_non_nombre(superficie: object) -> None:
+    """Rejette ce qui n'est pas une superficie mesurable.
+
+    ``numbers.Real`` plutôt que ``int | float`` : une valeur tirée d'un tableau numpy est
+    un ``numpy.int64``, qui n'hérite ni de l'un ni de l'autre mais mesure tout aussi bien.
+    Les booléens en sont exclus explicitement — ``True`` vaut 1 pour Python, jamais un m².
+    """
+    if isinstance(superficie, bool) or not isinstance(superficie, numbers.Real):
+        raise erreur_de_type(superficie, "un nombre ou une pandas.Series")
+
+
 def _metres_carres_depuis_nombre(superficie: float | int, invalide: SurInvalide) -> int:
     """Arrondit une superficie au mètre carré et refuse les valeurs négatives."""
     if pd.isna(superficie):
@@ -156,7 +174,9 @@ def _formater_nombre(metres_carres: int) -> str:
 
 def _lire_texte(superficie: str, invalide: SurInvalide) -> int:
     """Relit une superficie écrite unique."""
-    correspondance = _HA_A_CA_COMPILE.match(superficie)
+    # ``fullmatch`` et non ``match`` : le ``$`` du module ``re`` accepte un saut de ligne
+    # final, celui de RE2 non. Les deux chemins doivent lire les mêmes écritures.
+    correspondance = _HA_A_CA_COMPILE.fullmatch(superficie)
     groupes = correspondance.groupdict() if correspondance else {}
 
     if not any(groupes.get(nom) for nom in COMPOSANTES):
@@ -178,8 +198,12 @@ def _metres_carres_depuis_colonne(superficies: pd.Series, invalide: SurInvalide)
     """Arrondit une colonne de superficies et refuse les valeurs négatives."""
     refuser_colonne_non_numerique(superficies, "la colonne de superficies")
 
-    metres_carres = en_metres_carres_entiers(pa.Array.from_pandas(superficies))
-    negatives = positions_negatives(metres_carres)
+    brutes = en_colonne_arrow(superficies)
+
+    # Le signe se lit sur les valeurs brutes, avant l'arrondi : -0,4 s'arrondirait à 0 et
+    # passerait pour une superficie nulle valide, là où le chemin scalaire la refuse.
+    negatives = positions_negatives(brutes)
+    metres_carres = en_metres_carres_entiers(brutes)
 
     if not pc.any(negatives).as_py():
         return metres_carres
@@ -192,9 +216,9 @@ def _metres_carres_depuis_colonne(superficies: pd.Series, invalide: SurInvalide)
 
 def _lire_colonne(superficies: pd.Series, invalide: SurInvalide) -> pa.Array:
     """Relit une colonne entière de superficies écrites."""
-    refuser_colonne_non_textuelle(superficies, "la colonne de superficies")
+    refuser_colonne_non_textuelle(superficies, "la colonne de superficies", _CONSEIL_TEXTE)
 
-    textes = pa.Array.from_pandas(superficies, type=pa.string())
+    textes = en_colonne_arrow(superficies, pa.string())
     metres_carres = lire(textes)
     illisibles = positions_illisibles(textes, metres_carres)
 

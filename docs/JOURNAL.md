@@ -1,5 +1,26 @@
 # Journal
 
+## 2026-08-09 — Correction des cinq blocages de la revue indépendante
+
+**Demande :** corriger les constats de la revue lancée en agents indépendants.
+**Fait :** cinq blocages, chacun précédé de son test de non-régression.
+- **Corse rejetée par `ref_cadastrale`** — deux définitions du code Insee coexistaient, l'une connaissant `2A`/`2B` et l'autre non. Elles sont fusionnées en un fragment unique partagé. `to_parts("2A0040000H0011")` fonctionne, dans toutes les formes et sur les deux chemins.
+- **Colonne Arrow fragmentée** — `pd.read_parquet(dtype_backend="pyarrow")` rend une colonne en plusieurs morceaux, que `replace_with_mask` refuse. Recollage à l'entrée par `appel.en_colonne_arrow`, utilisé par tous les sites de conversion.
+- **Superficie négative fractionnaire** — le signe est désormais lu avant l'arrondi, sinon `-0,4` devenait `'0 ca'` sur une colonne alors que le scalaire le refusait.
+- **Département tronqué** — `insee_from_parts("7", "048")` renvoyait `"70048"` : le remplissage du code commune compensait la lettre manquante. Un motif de département dédié est validé avant toute recomposition.
+- **Saut de ligne final** — `fullmatch` remplace `match` sur les trois modules, et la classe de blancs de `MOTIF_HA_A_CA` est écrite en clair : le `$` et le `\s` de `re` ne couvrent pas la même chose que ceux de RE2.
+
+Trois défauts de contrat d'appel corrigés au passage : une colonne `object` contenant des entiers était acceptée, une colonne de booléens passait pour numérique, et un `numpy.int64` était refusé comme superficie. Le code mort `decomposition_arrow.decomposer` est supprimé.
+
+**Fichiers :** `basicfoncierv2/{ref_cadastrale,superficie,commune}.py`, `basicfoncierv2/_internal/{appel,insee,motifs,unites,commune_arrow,decomposition_arrow,composition_arrow}.py`, `tests/test_{ref_cadastrale,superficie,commune}.py`, `.github/workflows/tests.yml`, `CLAUDE.md`, `docs/{BUGS,DECISIONS,MIGRATION}.md`
+**Vérifié par :** `pytest` → 471 passed (344 avant) ; `ruff check .` → All checks passed ; `ruff format --check .` → clean ; `python -m benchmarks` → décomposition **x6,2**, lecture ha a ca **x1,7**, écriture **x2,4**, hectares **x26,7**, commune et arrondissement **x4,7** — aucune régression.
+**À savoir :**
+- Les quatre premiers défauts avaient la même forme : **le chemin scalaire et le chemin colonne ne se comportaient pas pareil**. Mes tests validaient chaque chemin séparément, jamais leur accord. Les nouveaux tests confrontent systématiquement les deux.
+- Le défaut multi-chunk ne se déclenchait qu'en présence d'au moins une valeur empruntant le chemin lent : un plantage dépendant des données, que des tests sur colonnes courtes et homogènes ne pouvaient pas atteindre.
+- `ruff` a rattrapé une faute de ma part : un test que je venais d'écrire portait le nom d'un test existant et le masquait — `pytest` restait vert en en collectant un de moins. `F811`, sans quoi je ne l'aurais pas vu.
+- Le contrôle du contenu des colonnes `object` coûte 13 ms par million de lignes, mesuré, contre 500 ms pour l'opération complète.
+- La CI se contentait d'afficher les versions installées : elle vérifie maintenant que l'épinglage a tenu, et échoue sinon. Une matrice de six combinaisons pouvait sans cela tester six fois la même.
+
 ## 2026-08-09 — Module des communes, parité complète avec le v1
 
 **Demande :** livrer `commune`, dernier module de la parité.

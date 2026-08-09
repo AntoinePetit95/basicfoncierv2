@@ -1,7 +1,10 @@
 # Migrer de `basicfoncier` vers `basicfoncierv2`
 
-> **La parité avec le v1 est complète.** Toutes les fonctions ont leur équivalent et
-> leurs noms sont figés.
+> **Toutes les fonctions du v1 ont leur équivalent, et leurs noms sont figés.** Les
+> écarts de comportement qui subsistent sont volontaires et listés sous chaque tableau :
+> il s'agit dans tous les cas de résultats faux du v1 corrigés, ou de refus explicites là
+> où le v1 se taisait. Une seule entrée reste à trancher, `utils.adresse.adresse`, hors
+> périmètre cadastral.
 > Ce fichier est mis à jour dans la même tâche que toute création, tout renommage ou toute
 > suppression d'une fonction publique (CLAUDE.md §5).
 
@@ -23,7 +26,7 @@
 
 ### Références cadastrales
 
-| v1 | v2 (proposé) | Note |
+| v1 | v2 | Note |
 |---|---|---|
 | `ref_cadastrales.idu_from_parts` | `ref_cadastrale.idu_from_parts` | livré — **ordre des arguments changé**, voir l'avertissement en tête |
 | `ref_cadastrales.short_id_from_parts` | `ref_cadastrale.short_id_from_parts` | livré — même changement d'ordre |
@@ -32,10 +35,21 @@
 | `ref_cadastrales.ref_parcelle_to_short_id` | `ref_cadastrale.to_short_id` | livré — **cassée dans le v1**, voir plus bas |
 | `vectorized_functions.for_pandas.functions.*` | *(supprimé)* | passer une `Series` à la fonction du même nom |
 
-**Le module des références cadastrales est complet.** Deux différences de comportement en plus du changement d'ordre :
+**Le module des références cadastrales est complet.** Trois différences de comportement en plus du changement d'ordre :
 
 - **Alsace-Moselle.** `to_short_id` y renvoie la forme idu inchangée : les sections y étant numériques, une référence raccourcie ne serait plus décomposable. Le v1 la raccourcissait quand même, produisant des identifiants que sa propre fonction de lecture rejette.
 - **Zéros de la section.** Le v1 retire *tous* les zéros de la section (`section.replace("0", "")`), ce qui transforme aussi `A0` en `A`. Le v2 ne retire que les zéros de tête.
+- **Blancs de fin.** Une référence suivie d'un saut de ligne — `"780480000H0011\n"`, ce que produit une lecture de fichier texte mal découpée — est refusée. Le v1 l'acceptait. Si vos données en contiennent, appliquez `.str.strip()` avant l'appel : le v2 refuse de deviner.
+
+### Tous les territoires sont couverts
+
+La Corse (`2A`, `2B`), l'outre-mer (`97x`, `98x`) et l'Alsace-Moselle (`57`, `67`, `68`) sont reconnus par les deux modules, sur toutes les formes de référence :
+
+```python
+to_parts("2A0040000H0011")  # ('2A004', '000', '0H', '0011')
+to_short_id("2B0330000C0302")  # '2B033C302'
+to_parts("972150000C0302")  # ('97215', '000', '0C', '0302')
+```
 
 ### Superficies
 
@@ -81,9 +95,10 @@ insee_from_parts("972", "15")  # '97215'  (le v1 renvoyait '9715')
 to_commune_et_arrondissement("75104")  # ('75100', '104')
 ```
 
-**Trois différences de comportement :**
+**Quatre différences de comportement :**
 
 - **Recomposition outre-mer.** Le v1 tronquait le code département à deux caractères, produisant un code de quatre caractères : `("972", "15")` y donnait `9715`. Le v2 complète le code commune à la largeur restante et valide le résultat. Détail dans [BUGS.md](BUGS.md).
+- **Codes département validés.** `insee_from_parts` refuse un code département mal formé au lieu de le compenser par le remplissage du code commune : `("7", "048")` lève `CodeInseeInvalide` au lieu de renvoyer `"70048"`. Si vous construisez vos codes département par un calcul, vérifiez qu'il produit bien `"07"` et non `"7"`.
 - **Codes Insee validés.** Le v1 vérifiait la longueur par une assertion — désactivable à l'exécution, et muette sur la cause. Le v2 lève `CodeInseeInvalide` en nommant le code fautif. La Corse (`2A`, `2B`) est reconnue explicitement.
 - **Arrondissements sur une colonne.** `to_commune_et_arrondissement` renvoie un `DataFrame` aux colonnes `insee_commune` et `arrondissement`, là où le v1 renvoyait un couple de tableaux.
 

@@ -71,8 +71,39 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Versions effectivement installées
-        run: python -c "import pandas, pyarrow, numpy; print(f'pandas {pandas.__version__} / pyarrow {pyarrow.__version__} / numpy {numpy.__version__}')"
+      # L'installation du paquet a lieu après l'épinglage et peut le défaire : une
+      # matrice qui n'affiche que les versions obtenues peut être verte en testant six
+      # fois la même. Cette étape échoue si l'épinglage n'a pas tenu.
+      - name: Vérifier que l'épinglage a tenu
+        env:
+          PANDAS_ATTENDU: ${{ matrix.pandas }}
+          PYARROW_ATTENDU: ${{ matrix.pyarrow }}
+        run: |
+          python - <<'PY'
+          import os
+          import numpy
+          import pandas
+          import pyarrow
+
+          print(
+              f"pandas {pandas.__version__} / pyarrow {pyarrow.__version__} "
+              f"/ numpy {numpy.__version__}"
+          )
+
+          ecarts = [
+              f"{nom} : attendu {attendu}, installé {obtenu}"
+              for nom, attendu, obtenu in (
+                  ("pandas", os.environ["PANDAS_ATTENDU"], pandas.__version__),
+                  ("pyarrow", os.environ["PYARROW_ATTENDU"], pyarrow.__version__),
+              )
+              if attendu and attendu != obtenu
+          ]
+          if ecarts:
+              raise SystemExit(
+                  "L'épinglage a été défait par l'installation du paquet :\n  "
+                  + "\n  ".join(ecarts)
+              )
+          PY
 
       - name: Tests
         run: pytest

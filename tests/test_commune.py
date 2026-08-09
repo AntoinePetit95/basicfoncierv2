@@ -1,6 +1,7 @@
 """Comportement attendu des conversions de code Insee de commune."""
 
 import pandas as pd
+import pyarrow as pa
 import pytest
 
 from basicfoncierv2 import CodeInseeInvalide
@@ -103,6 +104,37 @@ class TestRecomposition:
         with pytest.raises(CodeInseeInvalide):
             insee_from_parts("789", "048")
 
+    @pytest.mark.parametrize("departement", ["7", "", "2C", "2a", "9721", "AB"])
+    def test_refuse_un_code_departement_mal_forme(self, departement):
+        """Sans ce contrôle, ``("7", "048")`` donnerait ``"70048"`` sans lever d'erreur.
+
+        Le remplissage du code commune compense la lettre manquante du département, et
+        le résultat a la bonne longueur : seul le département lui-même peut le trahir.
+        """
+        with pytest.raises(CodeInseeInvalide, match="département"):
+            insee_from_parts(departement, "048")
+
+    @pytest.mark.parametrize("departement", ["7", "2C", "9721"])
+    def test_refuse_le_meme_code_departement_sur_une_colonne(self, departement):
+        with pytest.raises(CodeInseeInvalide, match="département"):
+            insee_from_parts(pd.Series([departement]), pd.Series(["048"]))
+
+    def test_situe_les_departements_fautifs_dans_le_message(self):
+        with pytest.raises(CodeInseeInvalide, match="'fautif'"):
+            insee_from_parts(
+                pd.Series(["78", "7"], index=["ok", "fautif"]),
+                pd.Series(["048", "048"], index=["ok", "fautif"]),
+            )
+
+    def test_ne_conseille_pas_une_option_qui_n_existe_pas(self):
+        """``insee_from_parts`` n'offre pas d'option ``invalide`` : ne pas la suggérer."""
+        with pytest.raises(CodeInseeInvalide) as leve:
+            insee_from_parts(pd.Series(["78"]), pd.Series(["0480"]))
+        assert "invalide='manquant'" not in str(leve.value)
+
+    def test_recompose_la_corse(self):
+        assert insee_from_parts("2A", "004") == "2A004"
+
     def test_refuse_de_melanger_chaine_et_colonne(self):
         with pytest.raises(TypeError, match="tous deux"):
             insee_from_parts("78", pd.Series(["048"]))
@@ -189,6 +221,36 @@ class TestContratDAppel:
         with pytest.raises(TypeError, match="des chaînes"):
             to_departement(pd.Series([78048]))
 
-    def test_refuse_une_valeur_inconnue_pour_l_option_invalide(self):
+    def test_refuse_une_colonne_d_objets_qui_contient_des_nombres(self):
+        with pytest.raises(TypeError, match="des chaînes"):
+            to_departement(pd.Series([78048], dtype=object))
+
+    @pytest.mark.parametrize(
+        "fonction", [to_departement, to_code_commune, to_commune_et_arrondissement]
+    )
+    def test_refuse_un_saut_de_ligne_final_des_deux_cotes(self, fonction):
+        """Le ``$`` du module ``re`` tolère un saut de ligne final, celui de RE2 non."""
+        with pytest.raises(CodeInseeInvalide):
+            fonction("78048\n")
+        with pytest.raises(CodeInseeInvalide):
+            fonction(pd.Series(["78048\n"]))
+
+    @pytest.mark.parametrize("fonction", [to_code_commune, to_commune_et_arrondissement])
+    def test_les_autres_fonctions_remplacent_aussi_un_code_fautif_sur_demande(self, fonction):
+        resultat = fonction(pd.Series(["AB048"]), invalide="manquant")
+        assert resultat.isna().all(axis=None)
+
+    @pytest.mark.parametrize(
+        "fonction", [to_departement, to_code_commune, to_commune_et_arrondissement]
+    )
+    def test_refuse_une_valeur_inconnue_pour_l_option_invalide(self, fonction):
         with pytest.raises(ValueError, match="ignorer"):
-            to_departement("78048", invalide="ignorer")
+            fonction("78048", invalide="ignorer")
+
+    def test_traite_une_colonne_fragmentee(self):
+        """Une colonne issue de read_parquet(dtype_backend='pyarrow') est découpée."""
+        morceaux = pa.chunked_array([["78048", "97215"], ["2A004"]], type=pa.string())
+        codes = pd.Series(pd.arrays.ArrowExtensionArray(morceaux))
+
+        assert morceaux.num_chunks > 1
+        assert list(to_departement(codes)) == ["78", "972", "2A"]

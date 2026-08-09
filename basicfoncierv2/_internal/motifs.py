@@ -19,6 +19,8 @@ d'être compris à l'identique par le moteur RE2 de PyArrow et par le module ``r
 
 import itertools
 
+from basicfoncierv2._internal.insee import FRAGMENT_INSEE
+
 DEPARTEMENTS_ALSACE_MOSELLE = ("57", "67", "68")
 
 CHAMPS = ("insee", "com_abs", "section", "numero")
@@ -31,12 +33,14 @@ _FINS = list(itertools.accumulate(LARGEURS[champ] for champ in CHAMPS))
 BORNES = {champ: (fin - LARGEURS[champ], fin) for champ, fin in zip(CHAMPS, _FINS, strict=True)}
 
 MOTIF_GENERAL = (
-    r"^(?P<insee>[0-9]{5})"
+    r"^(?P<insee>" + FRAGMENT_INSEE + ")"
     r"(?P<com_abs>[0-9]{3})?"
     r"(?P<section>[0-9A-Za-z]?[A-Za-z])"
     r"(?P<numero>[0-9]{1,4})$"
 )
 
+#: L'Alsace-Moselle ne comptant que les départements 57, 67 et 68, son code Insee est
+#: nécessairement numérique : le fragment corse n'a rien à y faire.
 MOTIF_ALSACE_MOSELLE = (
     r"^(?P<insee>[0-9]{5})"
     r"(?P<com_abs>[0-9]{3})"
@@ -50,10 +54,11 @@ MOTIF_ALSACE_MOSELLE = (
 #: Le régime Alsace-Moselle en est volontairement absent : une référence de 14
 #: chiffres y est canonique, mais une référence de 14 caractères à section
 #: alphabétique n'y est pas valide, et ce motif l'accepterait.
-MOTIF_IDU_GENERAL = r"^[0-9]{8}[0-9A-Za-z][A-Za-z][0-9]{4}$"
+MOTIF_IDU_GENERAL = "^" + FRAGMENT_INSEE + r"[0-9]{3}[0-9A-Za-z][A-Za-z][0-9]{4}$"
 
 FORMAT_ATTENDU = (
-    "insee (5 chiffres) + commune absorbée (3 chiffres, facultative) + "
+    "insee (5 caractères, 2A / 2B admis en Corse) + "
+    "commune absorbée (3 chiffres, facultative) + "
     "section (1 ou 2 caractères se terminant par une lettre) + numéro (1 à 4 chiffres) ; "
     "en Alsace-Moselle (départements 57, 67, 68) : exactement 14 chiffres"
 )

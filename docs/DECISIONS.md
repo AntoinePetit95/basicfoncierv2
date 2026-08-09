@@ -1,5 +1,67 @@
 # Décisions
 
+## 2026-08-09 — Un seul fragment de motif pour le code Insee, partagé entre modules
+
+**Contexte :** la forme d'un code Insee était écrite deux fois. `_internal/insee.py` connaissait la Corse (`(?:[0-9]{2}|2[AB])[0-9]{3}`), `_internal/motifs.py` l'ignorait (`[0-9]{5}`). Conséquence : `commune.to_departement("2A004")` fonctionnait, `ref_cadastrale.to_parts("2A0040000H0011")` levait `ReferenceCadastraleInvalide` — sur une donnée que le v1 décomposait sans difficulté. Toute la Corse était perdue à la migration.
+
+**Retenu :** `_internal/insee.py` expose `FRAGMENT_INSEE`, sans ancrage, que `motifs.py` insère dans `MOTIF_GENERAL` et `MOTIF_IDU_GENERAL`. Une seule écriture de la règle, pour les deux modules.
+
+**Pourquoi :** ce n'est pas un oubli qu'il fallait corriger à deux endroits, c'est une duplication qu'il fallait supprimer. Corriger `motifs.py` en recopiant l'alternative aurait laissé les deux définitions libres de diverger à nouveau au prochain territoire.
+
+**Écarté :** dériver le motif du seul module `motifs.py` (le code Insee est un concept de commune, pas de référence cadastrale : la dépendance irait à l'envers) ; garder `[0-9]{5}` en Alsace-Moselle — retenu au contraire, mais délibérément : les départements 57, 67 et 68 n'ont pas de forme corse, y admettre `2A` élargirait le motif sans raison.
+
+## 2026-08-09 — `fullmatch` côté Python, classes de blancs écrites en clair
+
+**Contexte :** les motifs sont partagés entre deux moteurs, RE2 (PyArrow) pour les colonnes et `re` pour les valeurs seules. Deux divergences les faisaient diverger sur les mêmes données : le `$` de `re` accepte un saut de ligne final, celui de RE2 non ; et le `\s` de `re` couvre l'espace insécable et la tabulation verticale, celui de RE2 non. `to_idu("780480000H0011\n")` réussissait donc en scalaire et échouait en colonne.
+
+**Retenu :** côté Python, `fullmatch` partout à la place de `match` — le motif garde son `$`, seul l'appel change. Côté motif, `\s` remplacé par la classe explicite `[ \t\n\f\r]`.
+
+**Pourquoi :** un motif unique ne garantit pas un comportement unique ; c'est le couple motif + moteur qui décide. Écrire les classes en clair rend la règle lisible sans connaître les deux moteurs, et `fullmatch` supprime la seule divergence que le motif ne pouvait pas absorber.
+
+**Écarté :** deux jeux de motifs, un par moteur (la duplication qu'on vient de supprimer ailleurs) ; nettoyer les entrées avant de les lire (masquerait une donnée douteuse au lieu de la signaler).
+
+## 2026-08-09 — Recoller les colonnes Arrow fragmentées à l'entrée
+
+**Contexte :** `pd.read_parquet(dtype_backend="pyarrow")` rend des colonnes découpées en plusieurs morceaux. `pa.Array.from_pandas` rend alors un `ChunkedArray`, que `pc.replace_with_mask` refuse — noyau qui recolle justement le chemin rapide et le chemin lent. Le plantage était donc dépendant des données : il n'apparaissait que si au moins une valeur empruntait le chemin lent.
+
+**Retenu :** un point d'entrée unique, `appel.en_colonne_arrow`, qui convertit et recolle. Tous les sites de conversion y passent.
+
+**Pourquoi :** le format d'entrée le plus courant en production ne doit pas dépendre du contenu de la colonne pour fonctionner. Recoller une fois à l'entrée coûte un parcours et rend tous les noyaux utilisables sans précaution.
+
+**Écarté :** éviter `replace_with_mask` (revient à renoncer au chemin rapide) ; recoller au cas par cas dans chaque noyau concerné (la prochaine utilisation du noyau suivant ramènerait le défaut).
+
+**À savoir :** selon la version de PyArrow, `combine_chunks()` rend un `Array` (25.x) ou un `ChunkedArray` à un seul morceau (versions antérieures). Les deux formes sont ramenées à un `Array`.
+
+## 2026-08-09 — Lire le signe d'une superficie avant de l'arrondir
+
+**Contexte :** le chemin colonne arrondissait au mètre carré avant de chercher les valeurs négatives. `-0,4` s'arrondit à `0` : la superficie devenait valide et nulle. Le chemin scalaire, lui, la refusait. `to_ha_a_ca(-0.4)` levait une erreur, `to_ha_a_ca(pd.Series([-0.4]))` renvoyait `'0 ca'`.
+
+**Retenu :** le masque des valeurs négatives est calculé sur les valeurs brutes, avant l'arrondi.
+
+**Pourquoi :** l'arrondi est une mise en forme, la validation porte sur la donnée reçue. Les faire dans cet ordre était une inversion, pas un arbitrage.
+
+**Écarté :** aligner le scalaire sur la colonne en arrondissant d'abord (ferait disparaître une donnée aberrante au lieu de la signaler).
+
+## 2026-08-09 — Valider le code département avant de recomposer un code Insee
+
+**Contexte :** `insee_from_parts` complète le code commune à la largeur que lui laisse le département. Si le département est tronqué, le remplissage compense : `("7", "048")` donnait `"70048"` — cinq caractères, conforme au motif d'un code Insee, et faux. Le résultat passait tous les contrôles.
+
+**Retenu :** un motif `MOTIF_DEPARTEMENT` dédié, contrôlé sur les deux chemins avant toute recomposition, avec un message qui nomme le département et non le code recomposé.
+
+**Pourquoi :** valider la sortie ne suffit pas quand la faute d'entrée produit une sortie bien formée. Il n'y a qu'à l'entrée que `"7"` est distinguable de `"07"`.
+
+**Écarté :** exiger un code commune de largeur exacte (rejetterait `("78", "48")`, que le v1 acceptait et que la migration doit continuer d'accepter).
+
+## 2026-08-09 — Inspecter le contenu d'une colonne `object`, pas seulement son dtype
+
+**Contexte :** le garde-fou de type acceptait toute colonne `object`. Or une colonne `object` peut contenir des entiers ; Arrow les convertit alors en texte sans broncher, après que les zéros de tête ont déjà disparu. `to_parts(pd.Series([78048011], dtype=object))` produisait donc une décomposition fausse là où `pd.Series([78048011])` était correctement refusée.
+
+**Retenu :** pour les colonnes `object` uniquement, `pd.api.types.infer_dtype(skipna=True)` décide ; seuls `string` et `empty` passent.
+
+**Pourquoi :** mesuré à 13 ms sur un million de lignes, contre 500 ms pour l'opération complète — 2,5 %, et rien du tout sur une colonne déjà typée. Le prix d'un résultat faux est sans commune mesure.
+
+**Écarté :** parcourir les valeurs en Python (même garantie, un ordre de grandeur plus cher) ; n'inspecter qu'un échantillon (un faux négatif silencieux, soit exactement ce qu'on cherche à supprimer).
+
 ## 2026-08-09 — Reprendre telle quelle la table d'arrondissements du v1
 
 **Contexte :** le v1 associe à chaque jeu d'arrondissements municipaux un code commune, et ces codes ne suivent pas la même règle : Marseille reçoit son code Insee réel (13055), Paris et Lyon reçoivent des codes absents du répertoire Insee (75100 et 69300, au lieu de 75056 et 69123).
@@ -77,7 +139,9 @@
 ## 2026-08-09 — Vectorisation native pandas/pyarrow, zéro boucle Python
 
 **Contexte :** le v1 expose ses fonctions « vectorisées » via `np.vectorize`, qui n'est pas une vectorisation : c'est une boucle Python avec un appel de fonction par ligne. C'est le coût dominant sur une colonne de plusieurs centaines de milliers de parcelles.
-**Retenu :** implémentation native — décomposition des références par regex vectorisée (`.str.extract`), recomposition par `.str.zfill` et concaténation, superficies par arithmétique entière numpy. Chaînes en `string[pyarrow]`. `pyarrow` devient une dépendance d'exécution.
+**Retenu :** implémentation native. `pyarrow` devient une dépendance d'exécution.
+
+*Rectification du 2026-08-09, après livraison :* la décision annonçait un passage par les accesseurs pandas (`.str.extract`, `.str.zfill`) et par de l'arithmétique numpy. **Ce n'est pas ce qui a été livré.** Tout passe directement par les noyaux de calcul PyArrow (`extract_regex`, `utf8_slice_codeunits`, `utf8_lpad`, `binary_join_element_wise`, `if_else`, `replace_with_mask`), sans repasser par pandas entre l'entrée et la sortie. La bibliothèque n'appelle plus aucun accesseur `.str`. Cette version est plus rapide et se prête au chemin rapide décrit plus bas, mais elle expose au moteur RE2 — dont les divergences avec le module `re` sont traitées dans les décisions suivantes.
 **Écarté :** numpy pur en dtype `object` (portable et sans dépendance nouvelle, mais les opérations sur chaînes y restent nettement plus lentes qu'en Arrow) ; numba ou Cython (le travail est majoritairement du traitement de chaînes, où ils aident peu, et ils ajoutent une chaîne de compilation à la publication) ; conserver `np.vectorize` (n'attaque pas la cause).
 
 **Mesuré le 2026-08-09, à la première implémentation** (`python -m benchmarks`, 1 million de références) : **x2,1**, et non « un à deux ordres de grandeur » comme annoncé au moment de la décision. Cette prévision était fausse — `np.vectorize` tient 435 000 lignes/s, bien mieux que supposé.

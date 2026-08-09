@@ -19,6 +19,7 @@ from .insee import (
     LONGUEUR_DEPARTEMENT_METROPOLE,
     LONGUEUR_DEPARTEMENT_OUTRE_MER,
     LONGUEUR_INSEE,
+    MOTIF_DEPARTEMENT,
     MOTIF_INSEE,
     PREFIXES_OUTRE_MER,
 )
@@ -36,6 +37,17 @@ def valider(codes: pa.Array) -> pa.Array:
 def positions_invalides(codes: pa.Array, valides: pa.Array) -> pa.Array:
     """Vrai là où un code était présent mais ne respecte pas le format."""
     return pc.and_(pc.is_valid(codes), pc.is_null(valides))
+
+
+def positions_departements_invalides(departement: pa.Array) -> pa.Array:
+    """Vrai là où un code département est présent mais mal formé.
+
+    Contrôlé avant la recomposition : un département d'un seul caractère se ferait sinon
+    compenser par le remplissage du code commune, et donnerait un code Insee de bonne
+    longueur mais faux — ``("7", "048")`` deviendrait ``"70048"``.
+    """
+    conforme = pc.fill_null(pc.match_substring_regex(departement, pattern=MOTIF_DEPARTEMENT), False)
+    return pc.and_(pc.is_valid(departement), pc.invert(conforme))
 
 
 def _masque_outre_mer(codes: pa.Array) -> pa.Array:

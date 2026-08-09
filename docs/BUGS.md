@@ -80,4 +80,22 @@ ref_parcelle_to_short_id("972150000C0302") → ValueError: invalid literal for i
 
 ## Résolus
 
-*(aucun)*
+### 2026-08-09 — Cinq défauts du v2 trouvés par la revue indépendante
+
+Trois relecteurs lancés en parallèle sur le code complet ont convergé sur cinq défauts que ma propre revue n'avait pas vus. Tous sont corrigés sur `fix/constats-de-revue`, chacun avec son test de non-régression. Le point commun des quatre premiers : **le chemin scalaire et le chemin colonne ne se comportaient pas pareil**, et seule la confrontation systématique des deux les révélait.
+
+| Défaut | Symptôme | Correction |
+|---|---|---|
+| Corse rejetée | `to_parts("2A0040000H0011")` levait `ReferenceCadastraleInvalide` alors que `commune` acceptait `2A004` | fragment de motif Insee partagé entre `insee.py` et `motifs.py` |
+| Colonne Arrow fragmentée | `ArrowInvalid: Mask must be array or scalar, not ChunkedArray` sur une colonne issue de `read_parquet(dtype_backend="pyarrow")` | `appel.en_colonne_arrow` recolle à l'entrée |
+| Superficie négative fractionnaire | `to_ha_a_ca(-0.4)` levait, `to_ha_a_ca(pd.Series([-0.4]))` renvoyait `'0 ca'` | le signe est lu avant l'arrondi |
+| Département tronqué | `insee_from_parts("7", "048")` renvoyait `"70048"` sans erreur | `MOTIF_DEPARTEMENT` validé sur les deux chemins |
+| Saut de ligne final | `to_idu("780480000H0011\n")` réussissait, la colonne échouait | `fullmatch` côté Python, classe de blancs écrite en clair |
+
+**Gravité :** les deux premiers sont des pertes de données à l'échelle d'un fichier entier — toute la Corse, ou tout un `read_parquet`. Le troisième et le quatrième produisent une valeur fausse sans rien signaler, ce que ce projet s'est justement donné pour règle de ne jamais faire.
+
+**Portée réelle :** nulle. Le paquet n'est pas publié et aucun de ces défauts n'a atteint un utilisateur.
+
+**Ce que la revue a aussi montré :** le défaut multi-chunk ne se déclenchait que si au moins une valeur de la colonne empruntait le chemin lent — un plantage dépendant des données, invisible aux tests écrits sur des colonnes courtes et homogènes. Les tests de mélange de formes existaient ; il leur manquait la fragmentation.
+
+**Détail des arbitrages :** [DECISIONS.md](DECISIONS.md), cinq entrées du 2026-08-09.

@@ -7,6 +7,7 @@ une colonne pandas, et renvoie le résultat de même nature.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 
 import pandas as pd
 import pyarrow as pa
@@ -15,6 +16,7 @@ import pyarrow.compute as pc
 from ._internal.appel import (
     NOMBRE_EXEMPLES,
     SurInvalide,
+    en_colonne_arrow,
     en_serie,
     erreur_de_type,
     exemples_fautifs,
@@ -24,6 +26,7 @@ from ._internal.appel import (
 from ._internal.commune_arrow import (
     codes_communes,
     departements,
+    positions_departements_invalides,
     positions_invalides,
     recomposer,
     separer_arrondissement,
@@ -34,9 +37,11 @@ from ._internal.insee import (
     BORNES_ARRONDISSEMENT,
     COMMUNES_A_ARRONDISSEMENTS,
     FORMAT_ATTENDU,
+    FORMAT_DEPARTEMENT_ATTENDU,
     LONGUEUR_DEPARTEMENT_METROPOLE,
     LONGUEUR_DEPARTEMENT_OUTRE_MER,
     LONGUEUR_INSEE,
+    MOTIF_DEPARTEMENT,
     MOTIF_INSEE,
     PREFIXES_OUTRE_MER,
 )
@@ -45,6 +50,13 @@ from .erreurs import CodeInseeInvalide
 CHAMPS_ARRONDISSEMENT = ("insee_commune", "arrondissement")
 
 _INSEE_COMPILE = re.compile(MOTIF_INSEE)
+_DEPARTEMENT_COMPILE = re.compile(MOTIF_DEPARTEMENT)
+
+#: Ce que l'appelant peut faire d'une colonne qui n'est pas textuelle.
+_CONSEIL_TEXTE = (
+    "Un code Insee stocké en numérique a perdu ses zéros de tête — le 01 de l'Ain "
+    "devient 1 : convertissez la colonne à la lecture du fichier."
+)
 
 
 # --------------------------------------------------------------------------------------
@@ -145,7 +157,12 @@ def insee_from_parts(
 # --------------------------------------------------------------------------------------
 
 
-def _appliquer(insee, invalide, sur_texte, sur_colonne):
+def _appliquer(
+    insee: str | pd.Series,
+    invalide: SurInvalide,
+    sur_texte: Callable[[str], str],
+    sur_colonne: Callable[[pa.Array], pa.Array],
+) -> str | pd.Series:
     """Aiguille vers le chemin scalaire ou le chemin colonne, après validation."""
     valider_option_invalide(invalide)
 
@@ -164,7 +181,9 @@ def _appliquer(insee, invalide, sur_texte, sur_colonne):
 
 def _valider_texte(insee: str, invalide: SurInvalide) -> str:
     """Vérifie qu'un code Insee respecte le format."""
-    if _INSEE_COMPILE.match(insee):
+    # ``fullmatch`` et non ``match`` : le ``$`` du module ``re`` accepte un saut de ligne
+    # final, celui de RE2 non. Les deux chemins doivent accepter les mêmes codes.
+    if _INSEE_COMPILE.fullmatch(insee):
         return insee
     if invalide == "manquant":
         return pd.NA
@@ -202,6 +221,10 @@ def _separer_texte(insee: str) -> tuple[str, str]:
 
 def _recomposer_texte(departement: str, code_commune: str) -> str:
     """Recolle un code département et un code commune, celui-ci complété de zéros."""
+    if not _DEPARTEMENT_COMPILE.fullmatch(departement):
+        raise CodeInseeInvalide(
+            f"Code département invalide : {departement!r}. Attendu : {FORMAT_DEPARTEMENT_ATTENDU}."
+        )
     return departement + code_commune.zfill(LONGUEUR_INSEE - len(departement))
 
 
@@ -212,9 +235,9 @@ def _recomposer_texte(departement: str, code_commune: str) -> str:
 
 def _valider_colonne(insee: pd.Series, invalide: SurInvalide) -> pa.Array:
     """Valide une colonne entière de codes Insee."""
-    refuser_colonne_non_textuelle(insee, "la colonne de codes Insee")
+    refuser_colonne_non_textuelle(insee, "la colonne de codes Insee", _CONSEIL_TEXTE)
 
-    codes = pa.Array.from_pandas(insee, type=pa.string())
+    codes = en_colonne_arrow(insee, pa.string())
     valides = valider(codes)
     invalides = positions_invalides(codes, valides)
 
@@ -226,8 +249,8 @@ def _valider_colonne(insee: pd.Series, invalide: SurInvalide) -> pa.Array:
 
 def _recomposer_colonnes(departement: pd.Series, code_commune: pd.Series) -> pd.Series:
     """Recompose une colonne de codes Insee, puis la valide."""
-    refuser_colonne_non_textuelle(departement, "la colonne de départements")
-    refuser_colonne_non_textuelle(code_commune, "la colonne de codes commune")
+    refuser_colonne_non_textuelle(departement, "la colonne de départements", _CONSEIL_TEXTE)
+    refuser_colonne_non_textuelle(code_commune, "la colonne de codes commune", _CONSEIL_TEXTE)
 
     if not code_commune.index.equals(departement.index):
         raise ValueError(
@@ -236,15 +259,22 @@ def _recomposer_colonnes(departement: pd.Series, code_commune: pd.Series) -> pd.
             "Réindexez les colonnes avant de les recomposer."
         )
 
+    codes_departements = en_colonne_arrow(departement, pa.string())
+    fautifs = positions_departements_invalides(codes_departements)
+    if pc.any(fautifs).as_py():
+        _signaler_departement_invalide(departement, fautifs)
+
     recomposes = recomposer(
-        pa.Array.from_pandas(departement, type=pa.string()),
-        pa.Array.from_pandas(code_commune, type=pa.string()),
+        codes_departements,
+        en_colonne_arrow(code_commune, pa.string()),
     )
     valides = valider(recomposes)
     invalides = positions_invalides(recomposes, valides)
 
     if pc.any(invalides).as_py():
-        _signaler_colonne_invalide(en_serie(recomposes, departement.index), invalides)
+        _signaler_colonne_invalide(
+            en_serie(recomposes, departement.index), invalides, tolerance_possible=False
+        )
 
     return en_serie(valides, departement.index)
 
@@ -254,14 +284,39 @@ def _recomposer_colonnes(departement: pd.Series, code_commune: pd.Series) -> pd.
 # --------------------------------------------------------------------------------------
 
 
-def _signaler_colonne_invalide(insee: pd.Series, invalides: pa.Array) -> None:
-    """Lève une erreur nommant les codes fautifs et leur position."""
+def _signaler_colonne_invalide(
+    insee: pd.Series,
+    invalides: pa.Array,
+    *,
+    tolerance_possible: bool = True,
+) -> None:
+    """Lève une erreur nommant les codes fautifs et leur position.
+
+    :param tolerance_possible: faux quand la fonction appelante n'offre pas d'option
+        ``invalide`` — conseiller de la passer enverrait alors l'appelant dans le mur
+    """
     fautifs = exemples_fautifs(insee, invalides)
     exemples = fautifs.head(NOMBRE_EXEMPLES)
+    conseil = (
+        " Passez invalide='manquant' pour les remplacer par des valeurs manquantes."
+        if tolerance_possible
+        else ""
+    )
 
     raise CodeInseeInvalide(
         f"{len(fautifs)} code(s) Insee invalide(s) sur {len(insee)}. "
         f"Attendu : {FORMAT_ATTENDU}. "
-        f"Reçu, aux positions {list(exemples.index)} : {list(exemples)}. "
-        "Passez invalide='manquant' pour les remplacer par des valeurs manquantes."
+        f"Reçu, aux positions {list(exemples.index)} : {list(exemples)}.{conseil}"
+    )
+
+
+def _signaler_departement_invalide(departement: pd.Series, invalides: pa.Array) -> None:
+    """Lève une erreur nommant les codes département fautifs et leur position."""
+    fautifs = exemples_fautifs(departement, invalides)
+    exemples = fautifs.head(NOMBRE_EXEMPLES)
+
+    raise CodeInseeInvalide(
+        f"{len(fautifs)} code(s) département invalide(s) sur {len(departement)}. "
+        f"Attendu : {FORMAT_DEPARTEMENT_ATTENDU}. "
+        f"Reçu, aux positions {list(exemples.index)} : {list(exemples)}."
     )

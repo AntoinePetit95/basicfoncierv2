@@ -17,10 +17,15 @@ supérieure et la chaîne est malformée.
 METRES_CARRES_PAR_HECTARE = 10_000
 METRES_CARRES_PAR_ARE = 100
 
+#: Blancs admis entre un nombre et son unité. Écrits en clair plutôt que ``\s`` : le
+#: ``\s`` du module ``re`` couvre l'espace insécable et la tabulation verticale, celui de
+#: RE2 non. Les deux moteurs liraient alors des écritures différentes.
+_BLANCS = r"[ \t\n\f\r]*"
+
 MOTIF_HA_A_CA = (
-    r"^\s*(?:(?P<ha>[0-9]+)\s*ha\s*)?"
-    r"(?:(?P<a>[0-9]{1,2})\s*a\s*)?"
-    r"(?:(?P<ca>[0-9]{1,2})\s*ca)?\s*$"
+    rf"^{_BLANCS}(?:(?P<ha>[0-9]+){_BLANCS}ha{_BLANCS})?"
+    rf"(?:(?P<a>[0-9]{{1,2}}){_BLANCS}a{_BLANCS})?"
+    rf"(?:(?P<ca>[0-9]{{1,2}}){_BLANCS}ca)?{_BLANCS}$"
 )
 
 #: Écriture canonique — celle que produit la bibliothèque : espaces uniques, et

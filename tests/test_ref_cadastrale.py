@@ -1,6 +1,7 @@
 """Comportement attendu de la décomposition d'une référence cadastrale."""
 
 import pandas as pd
+import pyarrow as pa
 import pytest
 
 from basicfoncierv2 import ReferenceCadastraleInvalide
@@ -23,6 +24,11 @@ REFERENCES_VALIDES = [
     ("78048AB1234", ("78048", "000", "AB", "1234")),
     ("972150000C0302", ("97215", "000", "0C", "0302")),
     ("57463123456789", ("57463", "123", "45", "6789")),
+    # Corse : le département s'écrit 2A ou 2B, dans toutes les formes.
+    ("2A0040000H0011", ("2A004", "000", "0H", "0011")),
+    ("2A004H11", ("2A004", "000", "0H", "0011")),
+    ("2A004123AB1", ("2A004", "123", "AB", "0001")),
+    ("2B0330000C0302", ("2B033", "000", "0C", "0302")),
 ]
 
 REFERENCES_INVALIDES = [
@@ -40,6 +46,10 @@ REFERENCES_INVALIDES = [
     # faut une lettre de section, et en Alsace-Moselle il n'en faut pas.
     "78048000120123",
     "57463000AB1234",
+    # La Corse n'admet que 2A et 2B, en majuscules : rien d'autre n'est un département.
+    "2C004H11",
+    "2a004H11",
+    "2A04H11",
 ]
 
 
@@ -53,6 +63,10 @@ FORMES = [
     ("78048AB1234", "78048000AB1234", "78048AB1234"),
     ("972150000C0302", "972150000C0302", "97215C302"),
     ("57463123456789", "57463123456789", "57463123456789"),
+    ("2A0040000H0011", "2A0040000H0011", "2A004H11"),
+    ("2A004H11", "2A0040000H0011", "2A004H11"),
+    ("2A004123AB1", "2A004123AB0001", "2A004123AB1"),
+    ("2B0330000C0302", "2B0330000C0302", "2B033C302"),
 ]
 
 
@@ -305,6 +319,34 @@ class TestMelangeDeFormes:
         assert tuple(parts.iloc[2]) == ("97215", "000", "0C", "0302")
 
 
+class TestColonneFragmentee:
+    """Une colonne adossée à Arrow peut être découpée en plusieurs morceaux.
+
+    C'est le cas ordinaire d'un ``read_parquet(dtype_backend='pyarrow')``. Le mélange
+    des deux chemins de normalisation passe par ``replace_with_mask``, qui refuse un
+    tableau fragmenté : il doit être recollé à l'entrée.
+    """
+
+    @staticmethod
+    def _fragmentee(*morceaux: list[str]) -> pd.Series:
+        decoupe = pa.chunked_array(list(morceaux), type=pa.string())
+        assert decoupe.num_chunks > 1
+        return pd.Series(pd.arrays.ArrowExtensionArray(decoupe))
+
+    def test_decompose_une_colonne_fragmentee_de_formes_melangees(self):
+        refs = self._fragmentee(["780480000H0011", "78048H11"], ["972150000C0302"])
+        assert tuple(to_parts(refs).iloc[1]) == ("78048", "000", "0H", "0011")
+
+    def test_ramene_une_colonne_fragmentee_a_la_forme_idu(self):
+        refs = self._fragmentee(["78048H11"], ["2A004H11", "972150000C0302"])
+        assert list(to_idu(refs)) == ["780480000H0011", "2A0040000H0011", "972150000C0302"]
+
+    def test_signale_les_references_fautives_d_une_colonne_fragmentee(self):
+        refs = self._fragmentee(["780480000H0011"], ["AB048H11"])
+        with pytest.raises(ReferenceCadastraleInvalide, match="AB048H11"):
+            to_parts(refs)
+
+
 class TestContratDAppel:
     def test_refuse_une_entree_qui_n_est_ni_chaine_ni_colonne(self):
         with pytest.raises(TypeError, match="list"):
@@ -314,6 +356,33 @@ class TestContratDAppel:
         with pytest.raises(TypeError, match="zéros de tête"):
             to_parts(pd.Series([78048011]))
 
-    def test_refuse_une_valeur_inconnue_pour_l_option_invalide(self):
+    def test_refuse_une_colonne_d_objets_qui_contient_des_nombres(self):
+        """Le dtype ``object`` ne dit rien du contenu : Arrow convertirait sans broncher."""
+        with pytest.raises(TypeError, match="zéros de tête"):
+            to_parts(pd.Series([78048011], dtype=object))
+
+    def test_accepte_une_colonne_d_objets_entierement_absente(self):
+        """Rien à reprocher à une colonne vide de toute valeur."""
+        assert to_idu(pd.Series([None, None], dtype=object)).isna().all()
+
+    @pytest.mark.parametrize("fonction", [to_idu, to_short_id, to_parts])
+    def test_refuse_un_saut_de_ligne_final_des_deux_cotes(self, fonction):
+        """Le ``$`` du module ``re`` tolère un saut de ligne final, celui de RE2 non.
+
+        Sans ``fullmatch``, le chemin scalaire accepterait une référence que le chemin
+        colonne rejette.
+        """
+        with pytest.raises(ReferenceCadastraleInvalide):
+            fonction("780480000H0011\n")
+        with pytest.raises(ReferenceCadastraleInvalide):
+            fonction(pd.Series(["780480000H0011\n"]))
+
+    @pytest.mark.parametrize("fonction", [to_idu, to_short_id])
+    def test_remplace_une_reference_illisible_sur_demande(self, fonction):
+        assert pd.isna(fonction("AB048H11", invalide="manquant"))
+        assert fonction(pd.Series(["AB048H11"]), invalide="manquant").isna().all()
+
+    @pytest.mark.parametrize("fonction", [to_idu, to_short_id, to_parts])
+    def test_refuse_une_valeur_inconnue_pour_l_option_invalide(self, fonction):
         with pytest.raises(ValueError, match="ignorer"):
-            to_parts("78048H11", invalide="ignorer")
+            fonction("78048H11", invalide="ignorer")

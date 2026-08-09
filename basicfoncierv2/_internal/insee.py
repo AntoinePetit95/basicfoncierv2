@@ -14,7 +14,19 @@ code Insee. ``75104`` désigne le 4ᵉ arrondissement de Paris.
 
 LONGUEUR_INSEE = 5
 
-MOTIF_INSEE = r"^(?:[0-9]{2}|2[AB])[0-9]{3}$"
+#: Code Insee de commune, **sans ancrage**, pour être inséré dans un motif plus large.
+#: Source unique de la forme d'un code Insee : toute règle sur les départements — la
+#: Corse en particulier — s'écrit ici et nulle part ailleurs.
+FRAGMENT_INSEE = r"(?:[0-9]{2}|2[AB])[0-9]{3}"
+
+MOTIF_INSEE = rf"^{FRAGMENT_INSEE}$"
+
+#: Code département seul : 2 chiffres, ``2A`` / ``2B`` en Corse, 3 chiffres outre-mer.
+MOTIF_DEPARTEMENT = r"^(?:9[78][0-9]|2[AB]|[0-9]{2})$"
+
+FORMAT_DEPARTEMENT_ATTENDU = (
+    "un code département : 2 chiffres, 2A ou 2B en Corse, 3 chiffres en outre-mer"
+)
 
 FORMAT_ATTENDU = (
     "un code Insee de commune sur 5 caractères : 2 chiffres de département "

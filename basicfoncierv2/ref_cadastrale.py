@@ -19,6 +19,7 @@ import pyarrow.compute as pc
 from ._internal.appel import (
     NOMBRE_EXEMPLES,
     SurInvalide,
+    en_colonne_arrow,
     en_serie,
     erreur_de_type,
     exemples_fautifs,
@@ -41,6 +42,12 @@ from .erreurs import ReferenceCadastraleInvalide
 
 _GENERAL_COMPILE = re.compile(MOTIF_GENERAL)
 _ALSACE_MOSELLE_COMPILE = re.compile(MOTIF_ALSACE_MOSELLE)
+
+#: Ce que l'appelant peut faire d'une colonne qui n'est pas textuelle.
+_CONSEIL_TEXTE = (
+    "Une référence cadastrale stockée en numérique a perdu ses zéros de tête et "
+    "n'est plus décomposable : convertissez la colonne à la lecture du fichier."
+)
 
 
 # --------------------------------------------------------------------------------------
@@ -167,7 +174,11 @@ def short_id_from_parts(
 def _idu_depuis_texte(ref: str, invalide: SurInvalide) -> str:
     """Normalise une référence unique vers sa forme idu."""
     motif = _ALSACE_MOSELLE_COMPILE if est_alsace_moselle(ref) else _GENERAL_COMPILE
-    correspondance = motif.match(ref)
+
+    # ``fullmatch`` et non ``match`` : le ``$`` du module ``re`` accepte un saut de ligne
+    # final, celui de RE2 non. Sans cela le chemin scalaire admettrait des références que
+    # le chemin colonne rejette.
+    correspondance = motif.fullmatch(ref)
 
     if correspondance is None:
         if invalide == "manquant":
@@ -212,9 +223,9 @@ def _raccourcir_texte(idu: str) -> str:
 
 def _canoniques_depuis_colonne(refs: pd.Series, invalide: SurInvalide) -> pa.Array:
     """Normalise une colonne entière vers la forme idu, sans boucle Python."""
-    refuser_colonne_non_textuelle(refs, "la colonne")
+    refuser_colonne_non_textuelle(refs, "la colonne", _CONSEIL_TEXTE)
 
-    valeurs = pa.Array.from_pandas(refs, type=pa.string())
+    valeurs = en_colonne_arrow(refs, pa.string())
     canoniques = normaliser(valeurs)
     invalides = positions_invalides(valeurs, canoniques)
 
@@ -268,7 +279,7 @@ def _assembler_colonnes(parties: dict[str, pd.Series]) -> pd.Series:
     """Concatène quatre colonnes alignées sur le même index."""
     index = parties["insee"].index
     for champ, valeurs in parties.items():
-        refuser_colonne_non_textuelle(valeurs, f"la colonne {champ}")
+        refuser_colonne_non_textuelle(valeurs, f"la colonne {champ}", _CONSEIL_TEXTE)
         if not valeurs.index.equals(index):
             raise ValueError(
                 f"la colonne {champ} n'est pas alignée sur la colonne insee : "
@@ -278,7 +289,7 @@ def _assembler_colonnes(parties: dict[str, pd.Series]) -> pd.Series:
 
     completees = [
         pc.utf8_lpad(
-            pa.Array.from_pandas(parties[champ], type=pa.string()),
+            en_colonne_arrow(parties[champ], pa.string()),
             LARGEURS[champ],
             padding="0",
         )

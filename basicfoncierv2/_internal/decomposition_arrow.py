@@ -93,15 +93,6 @@ def decouper(canoniques: pa.Array) -> Colonnes:
     }
 
 
-def decomposer(refs: pa.Array) -> Colonnes:
-    """Décompose une colonne de références en ses quatre champs, complétés de zéros.
-
-    :param refs: colonne Arrow de chaînes
-    :return: un dictionnaire ``insee``, ``com_abs``, ``section``, ``numero``
-    """
-    return decouper(normaliser(refs))
-
-
 def positions_invalides(refs: pa.Array, canoniques: pa.Array) -> pa.Array:
     """Vrai là où une référence était présente mais n'a correspondu à aucun motif.
 

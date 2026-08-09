@@ -8,7 +8,7 @@
 
 Bibliothèque Python de manipulation de références cadastrales et de superficies foncières, consommée par les scripts EF qui traitent des fichiers cadastraux (DGFiP, MAJIC, fichiers fonciers). Elle succède à `basicfoncier` (PyPI, en production) avec trois objectifs : API plus simple, tests intégrés, exécution vectorisée sur colonnes entières de DataFrame pandas.
 
-**Statut actuel :** en développement — aucun code applicatif écrit à ce jour.
+**Statut actuel :** les trois modules publics — `ref_cadastrale`, `superficie`, `commune` — sont écrits et testés ; la parité fonctionnelle avec le v1 est atteinte. Le paquet n'est pas encore publié : version `0.0.1`, dépôt privé.
 
 **`basicfoncier` v1 est intouchable** : publié et utilisé par d'autres programmes. Aucune modification, aucune republication. La compatibilité se traite par [docs/MIGRATION.md](docs/MIGRATION.md), jamais en modifiant le v1.
 
@@ -32,8 +32,6 @@ tests/            un fichier de test par module du paquet
 benchmarks/       mesures de débit, critère de succès des tâches « vitesse »
 docs/             JOURNAL · BUGS · DECISIONS · MIGRATION · VOCABULAIRE
 ```
-
-*Arborescence cible, pas encore créée.*
 
 ---
 

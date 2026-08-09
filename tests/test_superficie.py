@@ -1,6 +1,8 @@
 """Comportement attendu des conversions de superficie."""
 
+import numpy as np
 import pandas as pd
+import pyarrow as pa
 import pytest
 
 from basicfoncierv2 import SuperficieInvalide
@@ -68,6 +70,20 @@ class TestEcriture:
 
     def test_remplace_une_superficie_negative_sur_demande(self):
         assert pd.isna(to_ha_a_ca(-1, invalide="manquant"))
+
+    @pytest.mark.parametrize("negative", [-0.4, -0.5, -0.9])
+    def test_refuse_une_superficie_negative_qui_s_arrondit_a_zero(self, negative):
+        """Le signe se lit avant l'arrondi, sans quoi -0,4 passerait pour 0 m²."""
+        with pytest.raises(SuperficieInvalide, match="négative"):
+            to_ha_a_ca(negative)
+
+    @pytest.mark.parametrize("negative", [-0.4, -0.5, -0.9])
+    def test_la_refuse_aussi_sur_une_colonne(self, negative):
+        with pytest.raises(SuperficieInvalide, match="négative"):
+            to_ha_a_ca(pd.Series([negative]))
+
+    def test_remplace_une_negative_arrondie_a_zero_sur_demande(self):
+        assert pd.isna(to_ha_a_ca(pd.Series([-0.4]), invalide="manquant").iloc[0])
 
     def test_propage_une_valeur_absente(self):
         assert pd.isna(to_ha_a_ca(pd.Series([100, None])).iloc[1])
@@ -146,10 +162,24 @@ class TestMelangeDEcritures:
         ecrites = pd.Series(["93 ca", "abc", "22 a 97 ca"])
         relues = from_ha_a_ca(ecrites, invalide="manquant")
         assert list(relues.isna()) == [False, True, False]
+        assert [relues.iloc[0], relues.iloc[2]] == [93, 2297]
 
     def test_propage_une_valeur_absente_au_milieu_de_canoniques(self):
         relues = from_ha_a_ca(pd.Series(["93 ca", None, "22 a 97 ca"]))
         assert list(relues.isna()) == [False, True, False]
+        assert [relues.iloc[0], relues.iloc[2]] == [93, 2297]
+
+    def test_lit_une_colonne_fragmentee_en_plusieurs_morceaux(self):
+        """Une colonne issue de read_parquet(dtype_backend='pyarrow') peut être découpée.
+
+        Le mélange des deux chemins de lecture passe alors par ``replace_with_mask``, qui
+        refuse un tableau fragmenté : il doit être recollé à l'entrée.
+        """
+        morceaux = pa.chunked_array([["1 ha 13 a 20 ca", "1 a 5 ca"], ["93 ca"]])
+        ecrites = pd.Series(pd.arrays.ArrowExtensionArray(morceaux))
+
+        assert morceaux.num_chunks > 1
+        assert list(from_ha_a_ca(ecrites)) == [11_320, 105, 93]
 
     def test_lit_une_colonne_entierement_canonique(self):
         assert list(from_ha_a_ca(pd.Series(["93 ca", "22 a 97 ca"]))) == [93, 2297]
@@ -172,6 +202,30 @@ class TestHectares:
         with pytest.raises(SuperficieInvalide, match="négative"):
             to_hectares(-1)
 
+    def test_refuse_une_superficie_negative_sur_une_colonne(self):
+        with pytest.raises(SuperficieInvalide, match="négative"):
+            to_hectares(pd.Series([-1]))
+
+    def test_refuse_une_negative_qui_s_arrondit_a_zero(self):
+        with pytest.raises(SuperficieInvalide, match="négative"):
+            to_hectares(pd.Series([-0.49]))
+
+    def test_remplace_une_superficie_negative_sur_demande(self):
+        assert pd.isna(to_hectares(-1, invalide="manquant"))
+
+    def test_remplace_une_negative_sur_demande_sur_une_colonne(self):
+        hectares = to_hectares(pd.Series([11_320, -1]), invalide="manquant")
+        assert hectares.iloc[0] == pytest.approx(1.132)
+        assert pd.isna(hectares.iloc[1])
+
+    def test_situe_les_superficies_negatives_dans_le_message(self):
+        with pytest.raises(SuperficieInvalide, match="'fautive'"):
+            to_hectares(pd.Series([93, -5], index=["ok", "fautive"]))
+
+    def test_refuse_une_valeur_inconnue_pour_l_option_invalide(self):
+        with pytest.raises(ValueError, match="ignorer"):
+            to_hectares(93, invalide="ignorer")
+
     def test_propage_une_valeur_absente(self):
         assert pd.isna(to_hectares(pd.Series([100, None])).iloc[1])
 
@@ -183,9 +237,15 @@ class TestAllerRetour:
     def test_relire_ce_qui_vient_d_etre_ecrit_redonne_la_superficie(self, metres_carres, _ecriture):
         assert from_ha_a_ca(to_ha_a_ca(metres_carres)) == metres_carres
 
-    @pytest.mark.parametrize(("_ecriture", "metres_carres"), ECRITURES_TOLEREES)
-    def test_une_ecriture_toleree_se_recanonise(self, _ecriture, metres_carres):
-        assert from_ha_a_ca(to_ha_a_ca(metres_carres)) == metres_carres
+    @pytest.mark.parametrize(("ecriture", "metres_carres"), ECRITURES_TOLEREES)
+    def test_une_ecriture_toleree_se_recanonise(self, ecriture, metres_carres):
+        """Relire puis réécrire une écriture tolérée doit donner la forme canonique."""
+        assert to_ha_a_ca(from_ha_a_ca(ecriture)) == to_ha_a_ca(metres_carres)
+
+    @pytest.mark.parametrize(("ecriture", "metres_carres"), ECRITURES_TOLEREES)
+    def test_la_recanonisation_tient_sur_une_colonne(self, ecriture, metres_carres):
+        relues = from_ha_a_ca(pd.Series([ecriture]))
+        assert to_ha_a_ca(relues).iloc[0] == to_ha_a_ca(metres_carres)
 
     def test_la_propriete_tient_sur_une_colonne_entiere(self):
         superficies = pd.Series([0, 1, 99, 100, 9_999, 10_000, 1_234_567])
@@ -211,6 +271,49 @@ class TestContratDAppel:
         with pytest.raises(TypeError, match="des chaînes"):
             from_ha_a_ca(pd.Series([93]))
 
+    def test_refuse_une_colonne_d_objets_qui_ne_contient_pas_de_texte(self):
+        """Une colonne object porte n'importe quoi : son contenu réel décide."""
+        with pytest.raises(TypeError, match="des chaînes"):
+            from_ha_a_ca(pd.Series([93], dtype=object))
+
+    def test_refuse_une_colonne_de_booleens(self):
+        """True vaut 1 pour pandas, qui la tient donc pour numérique."""
+        with pytest.raises(TypeError, match="des nombres"):
+            to_ha_a_ca(pd.Series([True, False]))
+
+    @pytest.mark.parametrize(
+        ("valeur", "attendu"),
+        [(np.int64(11_320), "1 ha 13 a 20 ca"), (np.float64(11_320.0), "1 ha 13 a 20 ca")],
+    )
+    def test_accepte_un_scalaire_numpy(self, valeur, attendu):
+        """Une valeur tirée d'un tableau numpy mesure aussi bien qu'un int Python."""
+        assert to_ha_a_ca(valeur) == attendu
+
+    def test_refuse_un_booleen_numpy(self):
+        with pytest.raises(TypeError):
+            to_ha_a_ca(np.True_)
+
     def test_refuse_une_valeur_inconnue_pour_l_option_invalide(self):
         with pytest.raises(ValueError, match="ignorer"):
             to_ha_a_ca(93, invalide="ignorer")
+
+    def test_refuse_une_valeur_inconnue_pour_l_option_invalide_a_la_lecture(self):
+        with pytest.raises(ValueError, match="ignorer"):
+            from_ha_a_ca("93 ca", invalide="ignorer")
+
+    @pytest.mark.parametrize("ecriture", ["9\xa0ca", "9\x0bca"])
+    def test_refuse_les_blancs_hors_de_la_classe_ecrite_en_clair(self, ecriture):
+        """Le ``\\s`` de Python couvre l'espace insécable et la tabulation verticale.
+
+        Celui de RE2 non. Les blancs admis sont donc écrits en clair, pour que les deux
+        chemins refusent les mêmes écritures au lieu de diverger silencieusement.
+        """
+        with pytest.raises(SuperficieInvalide):
+            from_ha_a_ca(ecriture)
+        with pytest.raises(SuperficieInvalide):
+            from_ha_a_ca(pd.Series([ecriture]))
+
+    @pytest.mark.parametrize("ecriture", ["9 ca\n", "\t9 ca", "9 ca "])
+    def test_lit_les_blancs_de_la_classe_de_la_meme_facon_des_deux_cotes(self, ecriture):
+        assert from_ha_a_ca(ecriture) == 9
+        assert from_ha_a_ca(pd.Series([ecriture])).iloc[0] == 9
