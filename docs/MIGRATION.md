@@ -1,8 +1,8 @@
 # Migrer de `basicfoncier` vers `basicfoncierv2`
 
-> **État partiel.** Les références cadastrales sont livrées et leurs noms sont figés.
-> Pour `superficie` et `commune`, la colonne « v2 » reste une *proposition* : ne pas s'appuyer
-> dessus tant que ces modules ne sont pas écrits.
+> **État partiel.** Les références cadastrales et les superficies sont livrées, leurs noms
+> sont figés. Pour `commune`, la colonne « v2 » reste une *proposition* : ne pas s'appuyer
+> dessus tant que le module n'est pas écrit.
 > Ce fichier est mis à jour dans la même tâche que toute création, tout renommage ou toute
 > suppression d'une fonction publique (CLAUDE.md §5).
 
@@ -40,11 +40,24 @@
 
 ### Superficies
 
-| v1 | v2 (proposé) | Note |
+| v1 | v2 | Note |
 |---|---|---|
-| `superficie.superficie_ha` | `superficie.to_hectares` | |
-| `superficie.superficie_ha_a_ca` | `superficie.to_ha_a_ca` | |
-| `superficie.superficie_from_str` | `superficie.from_ha_a_ca` | |
+| `superficie.superficie_ha` | `superficie.to_hectares` | livré |
+| `superficie.superficie_ha_a_ca` | `superficie.to_ha_a_ca` | livré — arrondit au m² le plus proche au lieu de tronquer |
+| `superficie.superficie_from_str` | `superficie.from_ha_a_ca` | livré — **corrige un résultat faux du v1**, voir plus bas |
+
+```python
+from basicfoncierv2.superficie import from_ha_a_ca, to_ha_a_ca, to_hectares
+
+to_ha_a_ca(11_320)  # '1 ha 13 a 20 ca'
+from_ha_a_ca("1 ha 13 a 20 ca")  # 11320
+to_hectares(11_320)  # 1.132
+```
+
+**Deux différences de comportement :**
+
+- **Lecture par motif.** Le v1 retire les lettres une à une et suppose donc que les ares et les centiares sont écrits sur deux chiffres : `superficie_from_str("1 a 5 ca")` y vaut 15 au lieu de 105. Le v2 lit le format ; il accepte les espaces multiples et les composantes non complétées, et **refuse** ce qu'il ne sait pas lire au lieu de renvoyer un nombre faux. Détail dans [BUGS.md](BUGS.md).
+- **Superficies négatives.** Le v1 les formatait sans broncher. Le v2 lève `SuperficieInvalide`, ou pose une valeur manquante si vous passez `invalide="manquant"`.
 
 ### Communes
 

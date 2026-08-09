@@ -2,6 +2,26 @@
 
 ## Ouverts
 
+### Hérité de `basicfoncier` v1 — `superficie_from_str` se trompe sur les écritures non complétées
+
+**Périmètre :** défaut du v1. **Il n'est pas corrigé ici** — le v1 est intouchable (CLAUDE.md §5). Consigné parce que le v2 réimplémente cette lecture et parce que la migration doit prévenir les utilisateurs.
+
+**Symptôme :** la lecture retire les lettres une à une (`replace(" ", "").replace("a", "").replace("c", "").replace("h", "")`) puis convertit le reste en entier. Cela ne fonctionne que si les ares et les centiares sont écrits sur deux chiffres.
+
+**Reproduction** (dans le dépôt v1) :
+
+```
+superficie_from_str("1 ha 0 a 3 ca")  → 103    au lieu de 10 003
+superficie_from_str("1 a 5 ca")       → 15     au lieu de 105
+superficie_from_str("1 ha 13 a 20 ca") → 11 320  (correct : composantes complétées)
+```
+
+**Portée réelle :** les sorties de `superficie_ha_a_ca` sont complétées, donc l'aller-retour interne au v1 est juste. Le défaut se déclenche sur des données venues d'ailleurs — et il y en a dans les fixtures du v1 lui-même (`tests/test_vectorized.py` contient `'1 ha  0 a  3 ca'`, `'1 a 5 ca'`).
+
+**Aggravation :** comme pour le bug de décomposition, le wrapper pandas attrape l'exception dans un `except:` nu. Ici il n'y a même pas d'exception : la valeur fausse passe silencieusement.
+
+**Traitement dans le v2 :** `superficie.from_ha_a_ca` lit par motif et non par suppression de lettres. Les écritures non complétées sont testées explicitement, et une écriture illisible lève une erreur au lieu de produire un nombre.
+
 ### Hérité de `basicfoncier` v1 — ordre de tuple incohérent dans `ref_parcelle_to_parts`
 
 **Périmètre :** défaut du v1. **Il n'est pas corrigé ici** — le v1 est intouchable (CLAUDE.md §5). Consigné parce que le v2 réimplémente ces fonctions et ne doit pas reproduire le défaut, et parce que la migration doit prévenir les utilisateurs.

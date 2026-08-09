@@ -1,5 +1,16 @@
 # Journal
 
+## 2026-08-09 — Module des superficies
+
+**Demande :** livrer `superficie` après `ref_cadastrale`.
+**Fait :**
+- `to_hectares`, `to_ha_a_ca`, `from_ha_a_ca`, chaîne ou colonne, avec la propriété d'aller-retour testée.
+- La lecture repose sur un motif et non sur la suppression des lettres : elle corrige un **résultat faux** du v1 sur les écritures non complétées, et refuse ce qu'elle ne sait pas lire.
+- Contrôles d'appel communs sortis dans `_internal/appel.py`, partagés avec `ref_cadastrale` : une seule définition de l'option `invalide`, du refus de colonne et de la conversion Arrow vers pandas.
+**Fichiers :** `basicfoncierv2/superficie.py`, `basicfoncierv2/_internal/{appel,unites,superficie_arrow}.py`, `basicfoncierv2/{__init__,erreurs,ref_cadastrale}.py`, `tests/test_superficie.py`, `benchmarks/__main__.py`, `docs/{BUGS,MIGRATION}.md`
+**Vérifié par :** `pytest` → 242 passed ; `ruff check .` → All checks passed ; `python -m benchmarks` → écriture x2,1 · hectares x37 · **lecture x0,6**.
+**À savoir :** la lecture `ha a ca` est **plus lente que le v1**. Le profil est sans ambiguïté : le motif coûte 1 103 ms sur 1 254, dont 512 pour les `\s*` qui rendent la lecture tolérante aux espaces multiples — tolérance nécessaire, les données du v1 en contiennent. Un motif à espaces uniques descend à 591 ms. La piste est donc la même que pour les références : reconnaître la forme canonique d'abord, ne recourir au motif tolérant que pour le reste. C'est la tâche suivante recommandée.
+
 ## 2026-08-09 — Forme idu, identifiant court et assemblage depuis les champs
 
 **Demande :** compléter `ref_cadastrale` avec les quatre fonctions restantes du v1.

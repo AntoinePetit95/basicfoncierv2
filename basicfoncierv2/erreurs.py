@@ -8,3 +8,7 @@ cas nominal, et il se signale par une exception explicite, jamais par une assert
 
 class ReferenceCadastraleInvalide(ValueError):
     """Une référence cadastrale ne respecte aucun format connu."""
+
+
+class SuperficieInvalide(ValueError):
+    """Une superficie est négative, ou son écriture ne respecte aucun format connu."""

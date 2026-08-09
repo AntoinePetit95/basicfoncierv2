@@ -11,12 +11,20 @@ illisible ne franchit jamais cette première étape.
 from __future__ import annotations
 
 import re
-from typing import Literal
 
 import pandas as pd
 import pyarrow as pa
 import pyarrow.compute as pc
 
+from ._internal.appel import (
+    NOMBRE_EXEMPLES,
+    SurInvalide,
+    en_serie,
+    erreur_de_type,
+    exemples_fautifs,
+    refuser_colonne_non_textuelle,
+    valider_option_invalide,
+)
 from ._internal.arrow_commun import masque_alsace_moselle
 from ._internal.composition_arrow import COM_ABS_ABSENTE, en_id_court
 from ._internal.decomposition_arrow import decouper, normaliser, positions_invalides
@@ -30,11 +38,6 @@ from ._internal.motifs import (
     est_alsace_moselle,
 )
 from .erreurs import ReferenceCadastraleInvalide
-
-SurInvalide = Literal["erreur", "manquant"]
-
-_OPTIONS_INVALIDE = ("erreur", "manquant")
-_NOMBRE_EXEMPLES = 5
 
 _GENERAL_COMPILE = re.compile(MOTIF_GENERAL)
 _ALSACE_MOSELLE_COMPILE = re.compile(MOTIF_ALSACE_MOSELLE)
@@ -57,13 +60,13 @@ def to_idu(
         référence illisible ; ``"manquant"`` la remplace par une valeur manquante
     :return: une chaîne pour une chaîne, une ``Series`` pour une ``Series``
     """
-    _valider_option_invalide(invalide)
+    valider_option_invalide(invalide)
 
     if isinstance(ref, str):
         return _idu_depuis_texte(ref, invalide)
     if isinstance(ref, pd.Series):
-        return _en_serie(_canoniques_depuis_colonne(ref, invalide), ref.index)
-    raise _erreur_de_type(ref)
+        return en_serie(_canoniques_depuis_colonne(ref, invalide), ref.index)
+    raise erreur_de_type(ref, "une chaîne ou une pandas.Series")
 
 
 def to_short_id(
@@ -82,7 +85,7 @@ def to_short_id(
     :param invalide: voir :func:`to_idu`
     :return: une chaîne pour une chaîne, une ``Series`` pour une ``Series``
     """
-    _valider_option_invalide(invalide)
+    valider_option_invalide(invalide)
 
     if isinstance(ref, str):
         idu = _idu_depuis_texte(ref, invalide)
@@ -90,8 +93,8 @@ def to_short_id(
     if isinstance(ref, pd.Series):
         canoniques = _canoniques_depuis_colonne(ref, invalide)
         courts = en_id_court(decouper(canoniques), masque_alsace_moselle(canoniques))
-        return _en_serie(courts, ref.index)
-    raise _erreur_de_type(ref)
+        return en_serie(courts, ref.index)
+    raise erreur_de_type(ref, "une chaîne ou une pandas.Series")
 
 
 def to_parts(
@@ -114,14 +117,14 @@ def to_parts(
     :raises TypeError: entrée qui n'est ni une chaîne ni une ``Series`` de chaînes
     :raises ValueError: valeur inconnue pour ``invalide``
     """
-    _valider_option_invalide(invalide)
+    valider_option_invalide(invalide)
 
     if isinstance(ref, str):
         idu = _idu_depuis_texte(ref, invalide)
         return (pd.NA,) * 4 if pd.isna(idu) else _decouper_texte(idu)
     if isinstance(ref, pd.Series):
         return _parts_depuis_colonne(ref, invalide)
-    raise _erreur_de_type(ref)
+    raise erreur_de_type(ref, "une chaîne ou une pandas.Series")
 
 
 def idu_from_parts(
@@ -209,7 +212,7 @@ def _raccourcir_texte(idu: str) -> str:
 
 def _canoniques_depuis_colonne(refs: pd.Series, invalide: SurInvalide) -> pa.Array:
     """Normalise une colonne entière vers la forme idu, sans boucle Python."""
-    _refuser_colonne_non_textuelle(refs, "la colonne")
+    refuser_colonne_non_textuelle(refs, "la colonne")
 
     valeurs = pa.Array.from_pandas(refs, type=pa.string())
     canoniques = normaliser(valeurs)
@@ -232,14 +235,6 @@ def _parts_depuis_colonne(refs: pd.Series, invalide: SurInvalide) -> pd.DataFram
     parts = table.to_pandas(types_mapper=pd.ArrowDtype)
     parts.index = refs.index
     return parts
-
-
-def _en_serie(valeurs: pa.Array, index: pd.Index) -> pd.Series:
-    """Enveloppe une colonne Arrow dans une ``Series`` pandas, index rétabli."""
-    serie = pa.table({"valeur": valeurs}).to_pandas(types_mapper=pd.ArrowDtype)["valeur"]
-    serie.index = index
-    serie.name = None
-    return serie
 
 
 # --------------------------------------------------------------------------------------
@@ -273,7 +268,7 @@ def _assembler_colonnes(parties: dict[str, pd.Series]) -> pd.Series:
     """Concatène quatre colonnes alignées sur le même index."""
     index = parties["insee"].index
     for champ, valeurs in parties.items():
-        _refuser_colonne_non_textuelle(valeurs, f"la colonne {champ}")
+        refuser_colonne_non_textuelle(valeurs, f"la colonne {champ}")
         if not valeurs.index.equals(index):
             raise ValueError(
                 f"la colonne {champ} n'est pas alignée sur la colonne insee : "
@@ -289,7 +284,7 @@ def _assembler_colonnes(parties: dict[str, pd.Series]) -> pd.Series:
         )
         for champ in CHAMPS
     ]
-    return _en_serie(pc.binary_join_element_wise(*completees, ""), index)
+    return en_serie(pc.binary_join_element_wise(*completees, ""), index)
 
 
 # --------------------------------------------------------------------------------------
@@ -297,38 +292,10 @@ def _assembler_colonnes(parties: dict[str, pd.Series]) -> pd.Series:
 # --------------------------------------------------------------------------------------
 
 
-def _valider_option_invalide(invalide: str) -> None:
-    """Rejette une valeur inconnue pour l'option ``invalide``."""
-    if invalide not in _OPTIONS_INVALIDE:
-        attendu = " ou ".join(map(repr, _OPTIONS_INVALIDE))
-        raise ValueError(f"invalide={invalide!r} est inconnu. Attendu : {attendu}.")
-
-
-def _erreur_de_type(ref: object) -> TypeError:
-    """Construit l'erreur signalant une entrée d'une nature inattendue."""
-    return TypeError(
-        f"une référence cadastrale doit être une chaîne ou une pandas.Series, "
-        f"reçu {type(ref).__name__}."
-    )
-
-
-def _refuser_colonne_non_textuelle(valeurs: pd.Series, designation: str) -> None:
-    """Rejette une colonne qui n'est pas faite de chaînes, avec la raison."""
-    if valeurs.dtype == object or pd.api.types.is_string_dtype(valeurs.dtype):
-        return
-
-    raise TypeError(
-        f"{designation} doit contenir des chaînes, reçu une colonne de type {valeurs.dtype}. "
-        "Une référence cadastrale stockée en numérique a perdu ses zéros de tête et "
-        "n'est plus décomposable : convertissez la colonne à la lecture du fichier."
-    )
-
-
 def _signaler_colonne_invalide(refs: pd.Series, invalides: pa.Array) -> None:
     """Lève une erreur nommant le nombre de références fautives et quelques exemples."""
-    masque = pd.Series(invalides.to_numpy(zero_copy_only=False), index=refs.index)
-    fautives = refs[masque]
-    exemples = fautives.head(_NOMBRE_EXEMPLES)
+    fautives = exemples_fautifs(refs, invalides)
+    exemples = fautives.head(NOMBRE_EXEMPLES)
 
     raise ReferenceCadastraleInvalide(
         f"{len(fautives)} référence(s) cadastrale(s) invalide(s) sur {len(refs)}. "
