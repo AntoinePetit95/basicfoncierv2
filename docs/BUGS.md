@@ -2,7 +2,7 @@
 
 ## Défauts hérités de `basicfoncier` v1
 
-**Aucun de ces défauts n'affecte `basicfoncierv2`** : ils sont tous corrigés ici. Ils
+**Aucun de ces défauts n'affecte `basicfoncier`** : ils sont tous corrigés ici. Ils
 restent consignés parce que le v1 est toujours publié et utilisé, et que quiconque migre
 doit savoir que ses données produites peuvent être fausses depuis plus longtemps qu'il ne
 le croit. Ils ne seront pas corrigés dans le v1, qui est figé.
@@ -78,6 +78,8 @@ Codes vérifiés au Code officiel géographique de l'Insee, comme les trois plag
 **Ce que la question cachait :** ce n'était pas seulement une erreur de table. Le cas Paris/Lyon/Marseille n'avait jamais été traité, ni dans le v1 ni dans le v2. Le champ insee d'une référence cadastrale y porte le code d'**arrondissement municipal**, pas celui de la commune : la parcelle du pilier Ouest de la tour Eiffel est `75107000CR0002`. Aucune parcelle parisienne ne porte `75056`. Les deux sens de conversion ne sont donc pas symétriques, et c'est voulu — voir [DECISIONS.md](DECISIONS.md).
 
 **Conséquence pour les utilisateurs :** les valeurs produites changent pour Paris et Lyon. Signalé en tête de section dans [MIGRATION.md](MIGRATION.md), avec le `replace` qui rétablit l'ancien comportement le temps d'une migration.
+
+**Portée réelle :** aucune donnée existante n'est touchée — le commanditaire n'a jamais traité de parcelle à Paris, Lyon ni Marseille. La reprise d'exports déjà livrés, un moment envisagée, est donc sans objet.
 
 ### 2026-08-09 — Cinq défauts du v2 trouvés par la revue indépendante
 

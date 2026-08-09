@@ -4,8 +4,8 @@ import pandas as pd
 import pyarrow as pa
 import pytest
 
-from basicfoncierv2 import ReferenceCadastraleInvalide
-from basicfoncierv2.ref_cadastrale import (
+from basicfoncier import ReferenceCadastraleInvalide
+from basicfoncier.ref_cadastrale import (
     idu_from_parts,
     short_id_from_parts,
     to_idu,

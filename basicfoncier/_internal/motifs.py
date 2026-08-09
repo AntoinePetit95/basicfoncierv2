@@ -19,7 +19,7 @@ d'être compris à l'identique par le moteur RE2 de PyArrow et par le module ``r
 
 import itertools
 
-from basicfoncierv2._internal.insee import FRAGMENT_INSEE
+from basicfoncier._internal.insee import FRAGMENT_INSEE
 
 DEPARTEMENTS_ALSACE_MOSELLE = ("57", "67", "68")
 

@@ -1,4 +1,4 @@
-# CLAUDE.md — basicfoncierv2
+# CLAUDE.md — basicfoncier
 
 > Section **Socle EF** : identique sur tous les projets Energie Foncière. Ne pas modifier localement.
 
@@ -8,9 +8,11 @@
 
 Bibliothèque Python de manipulation de références cadastrales et de superficies foncières, consommée par les scripts EF qui traitent des fichiers cadastraux (DGFiP, MAJIC, fichiers fonciers). Elle succède à `basicfoncier` (dépôt GitHub public, en production ; **jamais publié sur PyPI** — vérifié le 2026-08-09, l'index renvoie 404) avec trois objectifs : API plus simple, tests intégrés, exécution vectorisée sur colonnes entières de DataFrame pandas.
 
-**Statut actuel :** les trois modules publics — `ref_cadastrale`, `superficie`, `commune` — sont écrits et testés ; la parité fonctionnelle avec le v1 est atteinte. Le paquet n'est pas encore publié : version `0.0.1`, dépôt privé.
+**Statut actuel :** les trois modules publics — `ref_cadastrale`, `superficie`, `commune` — sont écrits et testés ; la parité fonctionnelle avec le v1 est atteinte. Le paquet **reprend le nom `basicfoncier`** et sera publié en `1.0.0` : le changement de version majeure est ce qui signale la réécriture de l'API, le v1 étant numéroté `0.1`. Dépôt encore privé, publication PyPI pas encore faite.
 
-**`basicfoncier` v1 est intouchable** : publié et utilisé par d'autres programmes. Aucune modification, aucune republication. La compatibilité se traite par [docs/MIGRATION.md](docs/MIGRATION.md), jamais en modifiant le v1.
+**Piège à connaître en développement :** le dépôt s'appelle `basicfoncierv2` mais le paquet s'appelle `basicfoncier`, comme le v1 voisin. Les benchmarks chargent donc le v1 sous l'alias `basicfoncier_v1` (`_importer_sous_alias`), sans quoi l'un masquerait l'autre et la mesure comparerait le paquet à lui-même.
+
+**`basicfoncier` v1 est intouchable** : en production et utilisé par d'autres programmes. Aucune modification, aucune republication. La compatibilité se traite par [docs/MIGRATION.md](docs/MIGRATION.md), jamais en modifiant le v1.
 
 ---
 
@@ -26,7 +28,7 @@ Bibliothèque Python de manipulation de références cadastrales et de superfici
 **Base de données :** aucune · **Paquets :** pip + `pyproject.toml`
 
 ```
-basicfoncierv2/   ref_cadastrale.py · superficie.py · commune.py
+basicfoncier/   ref_cadastrale.py · superficie.py · commune.py
   _internal/      implémentations vectorisées, non publiques
 tests/            un fichier de test par module du paquet
 benchmarks/       mesures de débit, critère de succès des tâches « vitesse »

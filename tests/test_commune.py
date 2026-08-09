@@ -4,14 +4,14 @@ import pandas as pd
 import pyarrow as pa
 import pytest
 
-from basicfoncierv2 import CodeInseeInvalide
-from basicfoncierv2.commune import (
+from basicfoncier import CodeInseeInvalide
+from basicfoncier.commune import (
     insee_from_parts,
     to_code_commune,
     to_commune_et_arrondissement,
     to_departement,
 )
-from basicfoncierv2.ref_cadastrale import idu_from_parts, to_idu, to_parts
+from basicfoncier.ref_cadastrale import idu_from_parts, to_idu, to_parts
 
 # Codes Insee valides avec leur découpe en département et code commune.
 DECOUPES = [

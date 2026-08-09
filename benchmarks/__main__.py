@@ -1,14 +1,17 @@
-"""Compare le débit de basicfoncierv2 à celui de basicfoncier v1.
+"""Compare le débit de ce paquet à celui de `basicfoncier` 0.1, son prédécesseur.
 
 Usage : ``python -m benchmarks [--lignes N] [--v1 CHEMIN]``
 
 Le v1 n'est pas une dépendance : il est importé depuis son dépôt voisin, en lecture
-seule, et la mesure se contente du v2 s'il est introuvable.
+seule, et la mesure se contente du v2 s'il est introuvable. Les deux portant le même
+nom de paquet, le v1 est chargé sous un alias — voir :func:`_importer_sous_alias`.
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib
+import importlib.util
 import string
 import sys
 import time
@@ -19,11 +22,15 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 
-from basicfoncierv2.commune import to_code_commune, to_commune_et_arrondissement, to_departement
-from basicfoncierv2.ref_cadastrale import to_idu, to_parts, to_short_id
-from basicfoncierv2.superficie import from_ha_a_ca, to_ha_a_ca, to_hectares
+from basicfoncier.commune import to_code_commune, to_commune_et_arrondissement, to_departement
+from basicfoncier.ref_cadastrale import to_idu, to_parts, to_short_id
+from basicfoncier.superficie import from_ha_a_ca, to_ha_a_ca, to_hectares
 
 CHEMIN_V1_PAR_DEFAUT = Path(__file__).resolve().parents[2] / "basicfoncier"
+
+#: Nom sous lequel le v1 est chargé, pour ne pas entrer en collision avec ce paquet,
+#: qui porte désormais le même nom.
+ALIAS_V1 = "basicfoncier_v1"
 LIGNES_PAR_DEFAUT = 1_000_000
 REPETITIONS = 3
 DEPARTEMENTS_ALSACE_MOSELLE = ("57", "67", "68")
@@ -121,19 +128,44 @@ def comparer(
 # --------------------------------------------------------------------------------------
 
 
+def _importer_sous_alias(paquet: Path, alias: str) -> bool:
+    """Charge un paquet depuis son chemin, sous un nom de module choisi.
+
+    Le v1 et le v2 portent le même nom : les mettre tous deux sur ``sys.path`` ferait
+    que l'un masquerait l'autre, et la comparaison mesurerait deux fois la même chose.
+    Le v1 est donc chargé sous ``basicfoncier_v1``. C'est possible parce qu'il n'emploie
+    que des imports relatifs, qui se résolvent contre le nom d'alias.
+    """
+    if alias in sys.modules:
+        return True
+
+    spec = importlib.util.spec_from_file_location(
+        alias, paquet / "__init__.py", submodule_search_locations=[str(paquet)]
+    )
+    if spec is None or spec.loader is None:
+        return False
+
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[alias] = module
+    spec.loader.exec_module(module)
+    return True
+
+
 def charger_v1(chemin: Path) -> SimpleNamespace | None:
     """Importe basicfoncier v1 depuis son dépôt voisin, ou None si indisponible.
 
     Les fonctions de commune n'y existent qu'en version scalaire : elles sont
     enveloppées par ``np.vectorize``, ce qu'un utilisateur du v1 doit faire lui-même.
     """
-    if not (chemin / "basicfoncier").is_dir():
+    paquet = chemin / "basicfoncier"
+    if not paquet.is_dir() or not _importer_sous_alias(paquet, ALIAS_V1):
         return None
 
-    sys.path.insert(0, str(chemin))
     try:
-        from basicfoncier.utils import communes_departements_regions
-        from basicfoncier.vectorized_functions.for_pandas import functions
+        communes_departements_regions = importlib.import_module(
+            f"{ALIAS_V1}.utils.communes_departements_regions"
+        )
+        functions = importlib.import_module(f"{ALIAS_V1}.vectorized_functions.for_pandas.functions")
     except ImportError:
         return None
 

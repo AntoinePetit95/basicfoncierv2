@@ -1,4 +1,4 @@
-"""Erreurs métier de basicfoncierv2.
+"""Erreurs métier de basicfoncier.
 
 Ces erreurs signalent une **donnée externe invalide** — une référence saisie, lue
 dans un fichier ou remontée d'une base. Ce n'est pas un bug du programme : c'est un

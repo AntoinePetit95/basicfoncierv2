@@ -149,10 +149,10 @@
 
 **Contrepartie assumée :** sur une colonne composée *uniquement* de formes courtes, le test de forme échoue à chaque ligne et ne sert à rien : le débit tombe à 819 277 lignes/s, environ 15 % de moins que l'implémentation précédente. Le pari est que les fichiers fonciers sont massivement en forme idu. S'il s'avérait faux sur un usage réel, c'est cette décision qu'il faudrait rouvrir.
 
-## 2026-08-09 — Nouveau paquet `basicfoncierv2` dans un dépôt séparé
+## 2026-08-09 — Nouveau paquet `basicfoncier` dans un dépôt séparé
 
 **Contexte :** `basicfoncier` est en production et sert de dépendance à d'autres programmes. Il doit rester intact, mais son API et ses performances ne conviennent plus.
-**Retenu :** un dépôt indépendant `basicfoncierv2`, avec son propre versioning et sa propre publication. Le v1 n'est plus touché ; la continuité est assurée par `docs/MIGRATION.md`.
+**Retenu :** un dépôt indépendant `basicfoncier`, avec son propre versioning et sa propre publication. Le v1 n'est plus touché ; la continuité est assurée par `docs/MIGRATION.md`.
 **Écarté :** un second paquet dans le dépôt du v1 (un seul workflow de publication pour deux paquets, et tout commit touche le dépôt en production) ; une branche v2 (une branche durablement divergente n'est pas un paquet distinct).
 
 ## 2026-08-09 — Vectorisation native pandas/pyarrow, zéro boucle Python

@@ -1,13 +1,13 @@
-# basicfoncierv2
+# basicfoncier
 
 Références cadastrales et superficies foncières françaises, vectorisées sur colonnes entières de `pandas`.
 
 Une seule fonction par concept. Chacune accepte indifféremment une valeur seule ou une `Series`, et renvoie le résultat de même nature. Une donnée invalide lève une erreur qui la nomme — jamais un silence.
 
 ```python
-from basicfoncierv2.ref_cadastrale import to_idu, to_parts
-from basicfoncierv2.superficie import to_ha_a_ca
-from basicfoncierv2.commune import to_commune_et_arrondissement
+from basicfoncier.ref_cadastrale import to_idu, to_parts
+from basicfoncier.superficie import to_ha_a_ca
+from basicfoncier.commune import to_commune_et_arrondissement
 
 to_idu("78048H11")  # '780480000H0011'
 to_parts("780480000H0011")  # ('78048', '000', '0H', '0011')
@@ -20,7 +20,7 @@ to_parts(df["idu"])  # DataFrame : insee, com_abs, section, numero
 ## Installation
 
 ```bash
-pip install basicfoncierv2
+pip install basicfoncier
 ```
 
 Python ≥ 3.10, `pandas` ≥ 2.1.4, `pyarrow` ≥ 15.0. Huit combinaisons de versions sont vérifiées à chaque commit — voir [la matrice de CI](.github/workflows/tests.yml).
@@ -32,7 +32,7 @@ Python ≥ 3.10, `pandas` ≥ 2.1.4, `pyarrow` ≥ 15.0. Huit combinaisons de ve
 Une référence cadastrale s'écrit sous plusieurs formes : la forme longue dite **idu**, sur 14 caractères, et des formes courtes où les zéros de remplissage et la commune absorbée sont omis. Toutes se ramènent à l'idu.
 
 ```python
-from basicfoncierv2.ref_cadastrale import (
+from basicfoncier.ref_cadastrale import (
     idu_from_parts,
     short_id_from_parts,
     to_idu,
@@ -51,7 +51,7 @@ Les quatre champs sortent toujours dans le même ordre — `insee`, `com_abs`, `
 ### Superficies
 
 ```python
-from basicfoncierv2.superficie import from_ha_a_ca, to_ha_a_ca, to_hectares
+from basicfoncier.superficie import from_ha_a_ca, to_ha_a_ca, to_hectares
 
 to_ha_a_ca(11_320)  # '1 ha 13 a 20 ca'
 from_ha_a_ca("1 ha 13 a 20 ca")  # 11320
@@ -63,7 +63,7 @@ La lecture repose sur un motif, pas sur une suppression de lettres : `from_ha_a_
 ### Codes Insee de commune
 
 ```python
-from basicfoncierv2.commune import (
+from basicfoncier.commune import (
     insee_from_parts,
     to_code_commune,
     to_commune_et_arrondissement,
@@ -109,7 +109,7 @@ to_parts(df["idu"], invalide="manquant")  # les références illisibles devienne
 
 Une valeur **absente** en entrée reste absente en sortie, sans erreur : c'est une donnée qui manque, pas une donnée fausse.
 
-Les trois erreurs métier — `ReferenceCadastraleInvalide`, `SuperficieInvalide`, `CodeInseeInvalide` — s'importent depuis `basicfoncierv2`.
+Les trois erreurs métier — `ReferenceCadastraleInvalide`, `SuperficieInvalide`, `CodeInseeInvalide` — s'importent depuis `basicfoncier`.
 
 ## Territoires
 
@@ -132,7 +132,9 @@ to_commune_et_arrondissement(parts[0])  # ('75056', '107')
 
 ## Venir de `basicfoncier`
 
-Ce paquet succède à [`basicfoncier`](https://github.com/AntoinePetit95/basicfoncier), qui reste disponible et fonctionnel. La migration est volontaire et peut se faire module par module.
+Ce paquet **garde le nom `basicfoncier`** mais en réécrit l'API. La version `1.0.0` publiée ici succède à la `0.1`, qui s'installait depuis [le dépôt d'origine](https://github.com/AntoinePetit95/basicfoncier) et n'a jamais été publiée sur PyPI. Elle y reste disponible et n'en sera pas retirée.
+
+**Si vous utilisez déjà `basicfoncier` sans épingler sa version, relisez vos appels avant de basculer** : le passage à une version majeure signale que rien de l'ancienne API n'est garanti. `pip install 'basicfoncier<1'` vous laisse le temps de migrer.
 
 **[docs/MIGRATION.md](docs/MIGRATION.md) donne la correspondance complète des fonctions**, les changements de comportement, et un avertissement à lire avant tout : deux fonctions du v1 renvoient des valeurs fausses, et son wrapper pandas transforme les erreurs en valeurs manquantes silencieuses. Si vous les consommez, vérifiez vos colonnes de sortie avant de migrer.
 

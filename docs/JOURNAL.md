@@ -1,5 +1,19 @@
 # Journal
 
+## 2026-08-09 — Le paquet reprend le nom `basicfoncier`, en version 1.0.0
+
+**Demande :** publier sous le nom `basicfoncier` directement, les utilisateurs n'ayant pas à savoir qu'il s'agit d'une v2. Information complémentaire : aucune parcelle de Paris, Lyon ou Marseille n'a jamais été traitée.
+**Fait :**
+- Paquet renommé `basicfoncierv2` → `basicfoncier`, 41 occurrences dans 16 fichiers, distribution et import compris.
+- **Version portée à `1.0.0`, et non `0.1.0`.** Le v1 déclare `version='0.1'`, et **PEP 440 tient `0.1` et `0.1.0` pour la même version** — vérifié. Publier `0.1.0` aurait rendu la réécriture indiscernable du v1 pour `pip`, qui aurait pu considérer une installation existante comme déjà satisfaisante. La version majeure est par ailleurs le signal juste : l'API change entièrement.
+- **Benchmarks : le v1 est désormais chargé sous l'alias `basicfoncier_v1`.** Les deux paquets portant le même nom, l'ancien aurait masqué le nouveau et la mesure aurait comparé le paquet à lui-même. Possible parce que le v1 n'emploie que des imports relatifs, qui se résolvent contre le nom d'alias — vérifié avant d'être écrit.
+- `MIGRATION.md` et le README réécrits en conséquence : le raccourci « v1 / v2 » y est explicitement défini, puisque seul le numéro de version distingue les deux.
+- Question des exports existants **close** : aucune donnée EF ne porte les anciens codes de Paris ou Lyon, la reprise envisagée est sans objet. Consigné dans `BUGS.md`.
+
+**Fichiers :** `basicfoncier/**`, `tests/**`, `benchmarks/__main__.py`, `pyproject.toml`, `README.md`, `CHANGELOG.md`, `CLAUDE.md`, `docs/{BUGS,DECISIONS,MIGRATION}.md`, `.github/workflows/publish.yml`
+**Vérifié par :** `pytest` → 473 passed ; `ruff check .` → All checks passed ; roue `basicfoncier-1.0.0-py3-none-any.whl` construite ; `python -m benchmarks` → comparaison au v1 toujours fonctionnelle après renommage (décomposition x3,1 sur 150 000 lignes).
+**À savoir :** le dépôt GitHub s'appelle encore `basicfoncierv2` alors que le paquet s'appelle `basicfoncier`. Sans conséquence technique — les URL de `pyproject.toml` pointent sur le dépôt réel — mais c'est une décision qui reste à prendre.
+
 ## 2026-08-09 — Version 0.1.0 et workflow de publication
 
 **Demande :** avancer vers la publication ; adresse de contact personnelle plutôt que professionnelle.

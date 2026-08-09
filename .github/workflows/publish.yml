@@ -77,7 +77,7 @@ jobs:
     # lui que déclare l'éditeur de confiance sur PyPI.
     environment:
       name: pypi
-      url: https://pypi.org/p/basicfoncierv2
+      url: https://pypi.org/p/basicfoncier
     permissions:
       # Seul droit nécessaire : le jeton OIDC. Aucun secret n'est stocké dans le dépôt —
       # c'est la publication de confiance (trusted publishing) de PyPI.

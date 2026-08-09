@@ -3,8 +3,8 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "basicfoncierv2"
-version = "0.1.0"
+name = "basicfoncier"
+version = "1.0.0"
 description = "Références cadastrales et superficies foncières, vectorisées sur pandas"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -40,17 +40,17 @@ dependencies = [
 dev = ["pytest>=8.0", "ruff>=0.6", "numpy>=1.26"]
 
 [project.urls]
-Repository = "https://github.com/AntoinePetit95/basicfoncierv2"
-Changelog = "https://github.com/AntoinePetit95/basicfoncierv2/blob/main/CHANGELOG.md"
-Issues = "https://github.com/AntoinePetit95/basicfoncierv2/issues"
+Repository = "https://github.com/AntoinePetit95/basicfoncier"
+Changelog = "https://github.com/AntoinePetit95/basicfoncier/blob/main/CHANGELOG.md"
+Issues = "https://github.com/AntoinePetit95/basicfoncier/issues"
 
 [tool.setuptools.packages.find]
-include = ["basicfoncierv2*"]
+include = ["basicfoncier*"]
 
 # Sans ce marqueur, les annotations du paquet sont ignorées par mypy et les éditeurs :
 # l'utilisateur ne voit rien du typage, pourtant complet.
 [tool.setuptools.package-data]
-basicfoncierv2 = ["py.typed"]
+basicfoncier = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

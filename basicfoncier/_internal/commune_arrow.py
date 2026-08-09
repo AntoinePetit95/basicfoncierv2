@@ -94,7 +94,7 @@ def separer_arrondissement(codes: pa.Array) -> dict[str, pa.Array]:
     """Sépare un code d'arrondissement municipal en commune et numéro d'arrondissement.
 
     Un code qui ne désigne pas un arrondissement ressort inchangé, accompagné de
-    :data:`~basicfoncierv2._internal.insee.ARRONDISSEMENT_ABSENT`.
+    :data:`~basicfoncier._internal.insee.ARRONDISSEMENT_ABSENT`.
     """
     appartenances = {
         commune: pc.is_in(codes, value_set=pa.array(arrondissements, type=pa.string()))

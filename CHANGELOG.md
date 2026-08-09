@@ -3,9 +3,18 @@
 Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et le
 versionnage [SemVer](https://semver.org/lang/fr/).
 
-## [0.1.0] — 2026-08-09
+## [1.0.0] — 2026-08-09
 
-Première version publiée. Parité fonctionnelle avec `basicfoncier`.
+Première version publiée sur PyPI. Réécriture complète de `basicfoncier` `0.1`, dont
+elle garde le nom et atteint la parité fonctionnelle.
+
+**L'API change entièrement.** Le passage à une version majeure le signale : `1.0.0`
+n'est pas une évolution de la `0.1`, qui s'installait depuis GitHub et n'a jamais été
+publiée sur PyPI. Voir [docs/MIGRATION.md](docs/MIGRATION.md) pour la correspondance
+fonction par fonction.
+
+> Note de numérotation : PEP 440 tient `0.1` et `0.1.0` pour la **même** version. Publier
+> `0.1.0` aurait rendu cette réécriture indiscernable de l'ancienne pour `pip`.
 
 ### Ajouté
 

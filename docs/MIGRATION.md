@@ -1,4 +1,4 @@
-# Migrer de `basicfoncier` vers `basicfoncierv2`
+# Migrer depuis `basicfoncier` 0.1
 
 > **Toutes les fonctions du v1 ont leur équivalent, et leurs noms sont figés.** Les
 > écarts de comportement qui subsistent sont volontaires et listés sous chaque tableau :
@@ -13,14 +13,18 @@
 > prenait dans l'ordre `(insee, section, numero, com_abs)`. **Un appel positionnel recopié
 > tel quel produit une référence fausse sans lever d'erreur.** Relisez chaque appel.
 
-[`basicfoncier`](https://github.com/AntoinePetit95/basicfoncier) reste disponible et fonctionnel — il n'a jamais été publié sur PyPI, il s'installe depuis son dépôt. Aucune version n'en sera retirée ni modifiée : la migration est volontaire et peut se faire module par module.
+Ce paquet **garde le nom `basicfoncier`** : la version publiée sur PyPI, `1.0.0`, remplace celle qui s'installait depuis [le dépôt d'origine](https://github.com/AntoinePetit95/basicfoncier), numérotée `0.1`. Cette dernière n'a jamais été publiée sur PyPI ; elle reste disponible depuis son dépôt et n'en sera ni retirée ni modifiée.
+
+> ⚠️ **L'API change entièrement d'une version à l'autre.** C'est ce que signale le passage à une version majeure : `1.0.0` n'est pas une évolution de `0.1`, c'est une réécriture. Un programme qui fait `import basicfoncier` sans épingler sa version doit être relu avant de basculer. Épinglez `basicfoncier==0.1` le temps de migrer, ou `basicfoncier>=1.0` une fois la migration faite.
+
+Dans tout ce document, **« le v1 » désigne `basicfoncier` 0.1** et **« le v2 » la présente version 1.0**. Les deux portent le même nom de paquet ; seule la version les distingue.
 
 ## Ce qui change
 
 1. **Un seul nom par concept.** Le niveau `vectorized_functions.for_pandas.functions` disparaît. La même fonction accepte une `str` ou une `Series` et renvoie le même type.
 2. **Plus d'échec silencieux.** Le v1 attrape toute exception et renvoie `NA` ; une colonne pouvait se remplir de valeurs manquantes sans qu'aucune erreur ne remonte. Le v2 lève une erreur métier explicite, la tolérance aux valeurs invalides devant être demandée par l'appelant.
 3. **Vectorisation réelle.** Le v1 utilise `np.vectorize`, c'est-à-dire une boucle Python. Le v2 opère nativement sur la colonne entière.
-4. **`pyarrow` devient une dépendance.** Le v2 demande `pandas>=2.1.4`, `pyarrow>=15.0` et Python 3.12 ; chaque série mineure de pandas jusqu'à la 3.0 est vérifiée par la CI. Si vous êtes épinglé sur pandas 2.0.x, la migration demande d'abord de passer en 2.1.4 — voir [DECISIONS.md](DECISIONS.md) pour le détail.
+4. **`pyarrow` devient une dépendance.** Le v2 demande `pandas>=2.1.4`, `pyarrow>=15.0` et Python ≥ 3.10 ; huit combinaisons sont vérifiées par la CI, de Python 3.10 à 3.12 et de pandas 2.1.4 à 3.0. Si vous êtes épinglé sur pandas 2.0.x, la migration demande d'abord de passer en 2.1.4 — voir [DECISIONS.md](DECISIONS.md) pour le détail.
 
 ## Correspondance des fonctions
 
@@ -60,7 +64,7 @@ to_parts("972150000C0302")  # ('97215', '000', '0C', '0302')
 | `superficie.superficie_from_str` | `superficie.from_ha_a_ca` | livré — **corrige un résultat faux du v1**, voir plus bas |
 
 ```python
-from basicfoncierv2.superficie import from_ha_a_ca, to_ha_a_ca, to_hectares
+from basicfoncier.superficie import from_ha_a_ca, to_ha_a_ca, to_hectares
 
 to_ha_a_ca(11_320)  # '1 ha 13 a 20 ca'
 from_ha_a_ca("1 ha 13 a 20 ca")  # 11320
@@ -82,7 +86,7 @@ to_hectares(11_320)  # 1.132
 | `utils.communes_departements_regions.com_insee_com_arrdt_from_insee` | `commune.to_commune_et_arrondissement` | livré — renvoie un `DataFrame` sur une colonne |
 
 ```python
-from basicfoncierv2.commune import (
+from basicfoncier.commune import (
     insee_from_parts,
     to_code_commune,
     to_commune_et_arrondissement,
@@ -156,7 +160,7 @@ f"{numero} {voie}".strip()
 ## Les fonctions livrées
 
 ```python
-from basicfoncierv2.ref_cadastrale import (
+from basicfoncier.ref_cadastrale import (
     idu_from_parts,
     short_id_from_parts,
     to_idu,

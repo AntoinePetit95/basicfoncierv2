@@ -8,7 +8,7 @@ Deux formes de sortie, toutes deux construites depuis la forme idu :
 
 Le régime Alsace-Moselle n'a pas de forme courte. Ses sections étant numériques, rien
 n'y sépare la section du numéro : une référence raccourcie y serait illisible, et
-:func:`~basicfoncierv2._internal.decomposition_arrow.normaliser` la rejetterait. Elle
+:func:`~basicfoncier._internal.decomposition_arrow.normaliser` la rejetterait. Elle
 est donc laissée sous forme idu.
 """
 

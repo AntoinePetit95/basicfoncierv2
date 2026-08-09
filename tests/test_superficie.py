@@ -5,8 +5,8 @@ import pandas as pd
 import pyarrow as pa
 import pytest
 
-from basicfoncierv2 import SuperficieInvalide
-from basicfoncierv2.superficie import from_ha_a_ca, to_ha_a_ca, to_hectares
+from basicfoncier import SuperficieInvalide
+from basicfoncier.superficie import from_ha_a_ca, to_ha_a_ca, to_hectares
 
 # Superficies en m² avec leur écriture canonique, dans les deux sens.
 ECRITURES = [
