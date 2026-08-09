@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  tests:
+  qualite:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,6 +27,52 @@ jobs:
 
       - name: Format
         run: ruff format --check .
+
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      # Matrice explicite : une entrée par combinaison, sans fusion implicite.
+      matrix:
+        include:
+          # La combinaison la plus ancienne que le paquet prétende supporter.
+          - nom: "plancher : pandas 2.1.4 + pyarrow 15.0.2"
+            pandas: "2.1.4"
+            pyarrow: "15.0.2"
+          # Une entrée par série mineure de pandas depuis le plancher.
+          - nom: "pandas 2.1"
+            pandas: "2.1.4"
+          - nom: "pandas 2.2"
+            pandas: "2.2.3"
+          - nom: "pandas 2.3"
+            pandas: "2.3.3"
+          - nom: "pandas 3.0"
+            pandas: "3.0.5"
+          # Sans épinglage : ce que reçoit une installation neuve aujourd'hui.
+          - nom: "dernières versions"
+    name: ${{ matrix.nom }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Épingler pandas
+        if: matrix.pandas != ''
+        run: pip install "pandas==${{ matrix.pandas }}"
+
+      - name: Épingler pyarrow
+        if: matrix.pyarrow != ''
+        run: pip install "pyarrow==${{ matrix.pyarrow }}"
+
+      - name: Installer le paquet et ses outils
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Versions effectivement installées
+        run: python -c "import pandas, pyarrow, numpy; print(f'pandas {pandas.__version__} / pyarrow {pyarrow.__version__} / numpy {numpy.__version__}')"
 
       - name: Tests
         run: pytest

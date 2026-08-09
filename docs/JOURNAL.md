@@ -1,5 +1,16 @@
 # Journal
 
+## 2026-08-09 — Élargissement des bornes de dépendances
+
+**Demande :** élargir la compatibilité pandas, dans la mesure du raisonnable.
+**Fait :**
+- Suite exécutée contre pandas 2.0.3, 2.1.1, 2.1.4, 2.2.3, 2.3.3, 3.0.5 et contre Python 3.10, 3.11, 3.12, dans des environnements isolés. **Aucune modification de code n'a été nécessaire.**
+- `pandas>=3.0.0` devient `pandas>=2.1.4` ; `numpy` sort des dépendances d'exécution, le paquet ne l'important nulle part.
+- CI passée en matrice explicite : une entrée par série mineure de pandas, plus la combinaison plancher pandas 2.1.4 + pyarrow 15.0.2, plus une entrée sans épinglage. Lint et format déplacés dans un job distinct, exécuté une seule fois.
+**Fichiers :** `pyproject.toml`, `.github/workflows/tests.yml`, `docs/{DECISIONS,MIGRATION}.md`
+**Vérifié par :** matrice locale — 65 passed sur chacune des six combinaisons ; `pytest`, `ruff check .` et `ruff format --check .` verts sur l'environnement du projet.
+**À savoir :** pandas 2.0.3 et 2.1.1 passent aussi les tests, mais seulement si `numpy<2` est épinglé à la main — leurs métadonnées ne bornent pas numpy alors qu'ils ont été compilés contre la 1.x. Le plancher s'arrête donc à 2.1.4. `requires-python` reste `>=3.12` bien que 3.10 et 3.11 passent : c'est une décision qui n'a pas été demandée.
+
 ## 2026-08-09 — Chemin rapide par découpe directe sur la forme idu
 
 **Demande :** exploiter la marge de vitesse identifiée à la tâche précédente.

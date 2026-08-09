@@ -12,7 +12,7 @@
 1. **Un seul nom par concept.** Le niveau `vectorized_functions.for_pandas.functions` disparaît. La même fonction accepte une `str` ou une `Series` et renvoie le même type.
 2. **Plus d'échec silencieux.** Le v1 attrape toute exception et renvoie `NA` ; une colonne pouvait se remplir de valeurs manquantes sans qu'aucune erreur ne remonte. Le v2 lève une erreur métier explicite, la tolérance aux valeurs invalides devant être demandée par l'appelant.
 3. **Vectorisation réelle.** Le v1 utilise `np.vectorize`, c'est-à-dire une boucle Python. Le v2 opère nativement sur la colonne entière.
-4. **`pyarrow` devient une dépendance.**
+4. **`pyarrow` devient une dépendance.** Le v2 demande `pandas>=2.1.4`, `pyarrow>=15.0` et Python 3.12 ; chaque série mineure de pandas jusqu'à la 3.0 est vérifiée par la CI. Si vous êtes épinglé sur pandas 2.0.x, la migration demande d'abord de passer en 2.1.4 — voir [DECISIONS.md](DECISIONS.md) pour le détail.
 
 ## Correspondance des fonctions
 

@@ -1,5 +1,19 @@
 # Décisions
 
+## 2026-08-09 — Plancher de compatibilité à pandas 2.1.4
+
+**Contexte :** `pandas>=3.0.0` avait été déclaré parce que c'était la seule version testée. C'est une borne dure : elle exclut tout consommateur épinglé sur pandas 2.x. La suite a donc été exécutée contre chaque série mineure, dans des environnements isolés.
+
+**Constaté :** les 65 tests passent sans aucune modification du code de pandas 2.0.3 à 3.0.5, et de Python 3.10 à 3.12. Le code n'est pas le facteur limitant.
+
+**Retenu :** `pandas>=2.1.4`, `pyarrow>=15.0`, et une matrice de CI qui vérifie chaque série mineure plus la combinaison plancher.
+
+**Pourquoi 2.1.4 et pas 2.0.3 :** pandas 2.0.3 et 2.1.1 ont été compilés contre numpy 1.x sans que leurs métadonnées ne bornent numpy. Une installation neuve leur associe numpy 2.x et échoue à l'import sur `ValueError: numpy.dtype size changed`. Ces versions ne fonctionnent qu'en épinglant `numpy<2` à la main. Déclarer un plancher qui n'est atteignable qu'au prix d'un piège serait une fausse compatibilité ; 2.1.4 est la plus ancienne version dont la résolution par défaut aboutit seule.
+
+**numpy retiré des dépendances :** le paquet ne l'importe nulle part — pandas s'en charge. Il passe dans l'extra `dev`, où les benchmarks l'utilisent réellement. La borne `numpy>=2.0` qui figurait auparavant était de surcroît fausse : pandas 2.1.4 s'installe avec numpy 1.26.4.
+
+**Non tranché — le plancher Python.** `requires-python` reste `>=3.12`, faute de mandat. La suite passe pourtant sur Python 3.10 et 3.11 (vérifié). Abaisser cette borne n'élargirait pas la couverture pandas — 2.0.x reste écarté pour la raison ci-dessus — mais ouvrirait le paquet aux projets restés sur ces versions de Python.
+
 ## 2026-08-09 — Normaliser puis découper, plutôt qu'extraire
 
 **Contexte :** la première implémentation ne tenait que x2,1 contre le v1, et le profil montrait que la totalité du coût venait de l'extraction par expression régulière (740 ms sur 1 117 ms pour un million de références).
