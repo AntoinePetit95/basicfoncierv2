@@ -8,7 +8,8 @@ version = "0.0.1"
 description = "Références cadastrales et superficies foncières, vectorisées sur pandas"
 readme = "README.md"
 requires-python = ">=3.12"
-license = "MIT"
+license = "Unlicense"
+license-files = ["LICENSE"]
 authors = [{ name = "Antoine PETIT", email = "antoine.petit@energie-fonciere.fr" }]
 keywords = ["foncier", "cadastre", "parcelle", "pandas"]
 dependencies = [
