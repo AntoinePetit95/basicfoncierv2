@@ -55,7 +55,7 @@ Utilise ces commandes, pas d'autres. Si l'une échoue pour une raison d'environn
 
 ## 5. Zones sensibles
 
-- **Dépôt `basicfoncier` v1** (`C:/Users/antoi/PycharmProjects/basicfoncier`) : lecture seule absolue.
+- **Dépôt `basicfoncier` v1** (dépôt voisin `../basicfoncier`, cloné depuis `AntoinePetit95/basicfoncier`) : lecture seule absolue.
 - **Signatures publiques** après la première publication : toute rupture casse les consommateurs.
 - **`docs/MIGRATION.md`** : une fonction publique ajoutée, renommée ou supprimée sans mise à jour de ce fichier est une tâche non terminée.
 
