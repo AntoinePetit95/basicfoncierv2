@@ -132,7 +132,7 @@ to_commune_et_arrondissement(parts[0])  # ('75056', '107')
 
 ## Venir de `basicfoncier`
 
-Ce paquet succède à [`basicfoncier`](https://pypi.org/project/basicfoncier/), qui reste publié et fonctionnel. La migration est volontaire et peut se faire module par module.
+Ce paquet succède à [`basicfoncier`](https://github.com/AntoinePetit95/basicfoncier), qui reste disponible et fonctionnel. La migration est volontaire et peut se faire module par module.
 
 **[docs/MIGRATION.md](docs/MIGRATION.md) donne la correspondance complète des fonctions**, les changements de comportement, et un avertissement à lire avant tout : deux fonctions du v1 renvoient des valeurs fausses, et son wrapper pandas transforme les erreurs en valeurs manquantes silencieuses. Si vous les consommez, vérifiez vos colonnes de sortie avant de migrer.
 

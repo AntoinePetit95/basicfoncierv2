@@ -1,0 +1,91 @@
+name: Publier sur PyPI
+
+# Déclenché par la publication d'une release GitHub, jamais par un simple push.
+# Rien n'est publié sans qu'un humain ait créé la release.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  verifier:
+    name: Vérifier avant de construire
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer le paquet et ses outils
+        run: |
+          python -m pip install --upgrade pip build twine
+          pip install -e ".[dev]"
+
+      # Le workflow du v1 publiait sans rien vérifier. Celui-ci refuse de construire
+      # tant que la suite ne passe pas.
+      - name: Tests
+        run: pytest
+
+      - name: Lint et format
+        run: |
+          ruff check .
+          ruff format --check .
+
+      # Une release étiquetée v0.2.0 qui publierait un paquet en version 0.1.0
+      # passerait inaperçue jusqu'à ce qu'un utilisateur s'en étonne.
+      - name: Vérifier que l'étiquette correspond à la version du paquet
+        env:
+          ETIQUETTE: ${{ github.event.release.tag_name }}
+        run: |
+          python - <<'PY'
+          import os
+          import tomllib
+
+          with open("pyproject.toml", "rb") as fichier:
+              version = tomllib.load(fichier)["project"]["version"]
+
+          etiquette = os.environ["ETIQUETTE"].removeprefix("v")
+          print(f"étiquette {etiquette} / version du paquet {version}")
+          if etiquette != version:
+              raise SystemExit(
+                  f"L'étiquette de la release ({etiquette}) ne correspond pas à la "
+                  f"version déclarée dans pyproject.toml ({version}). "
+                  "Corrigez l'une ou l'autre avant de publier."
+              )
+          PY
+
+      - name: Construire
+        run: python -m build
+
+      - name: Contrôler les métadonnées des distributions
+        run: twine check --strict dist/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+
+  publier:
+    name: Publier
+    needs: verifier
+    runs-on: ubuntu-latest
+    # L'environnement permet d'exiger une approbation manuelle côté GitHub, et c'est
+    # lui que déclare l'éditeur de confiance sur PyPI.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/basicfoncierv2
+    permissions:
+      # Seul droit nécessaire : le jeton OIDC. Aucun secret n'est stocké dans le dépôt —
+      # c'est la publication de confiance (trusted publishing) de PyPI.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1

@@ -1,5 +1,21 @@
 # Journal
 
+## 2026-08-09 — Version 0.1.0 et workflow de publication
+
+**Demande :** avancer vers la publication ; adresse de contact personnelle plutôt que professionnelle.
+**Fait :**
+- `version = "0.1.0"`, `CHANGELOG` daté, adresse de l'auteur passée à `antoine.petit@lilo.org` — plus aucune occurrence de l'adresse professionnelle dans le dépôt.
+- **`.github/workflows/publish.yml`** en publication de confiance (OIDC), sans jeton stocké. Déclenché par une release GitHub, jamais par un push. Le job de publication est séparé et rattaché à un environnement `pypi`, ce qui permet d'exiger une approbation manuelle.
+- Le workflow **refuse de construire tant que la suite ne passe pas**, et **refuse de publier si l'étiquette de la release ne correspond pas à la version déclarée**. C'est exactement le défaut relevé sur le v1, dont l'unique workflow publierait sans avoir rien vérifié.
+- Contrôle d'étiquette rejoué localement (`v0.1.0` et `0.1.0` acceptées, `v0.2.0` refusée), YAML des deux workflows validé, roue reconstruite et métadonnées relues.
+
+**Fichiers :** `pyproject.toml`, `CHANGELOG.md`, `.github/workflows/publish.yml`, `README.md`, `CLAUDE.md`, `docs/{DECISIONS,MIGRATION}.md`
+**Vérifié par :** `pytest` → 473 passed ; `ruff check .` → All checks passed ; roue `basicfoncierv2-0.1.0-py3-none-any.whl` construite, métadonnées conformes.
+**À savoir :**
+- **`basicfoncier` n'a jamais été publié sur PyPI.** L'index officiel et l'API JSON renvoient 404 : `pip install basicfoncier` échouerait. J'ai affirmé le contraire dans `CLAUDE.md`, `DECISIONS.md`, `MIGRATION.md` et le README, sans l'avoir jamais vérifié — je l'ai repris d'une note de cadrage et propagé pendant tout le projet. Corrigé partout ; le v1 s'installe depuis son dépôt GitHub, qui est public. La leçon vaut d'être notée : c'est la seule affirmation du projet que je n'avais pas mise à l'épreuve, et elle était fausse.
+- Le nom `basicfoncierv2` est libre sur PyPI (404 sur l'index, vérifié le 2026-08-09).
+- **La publication de confiance doit être déclarée côté PyPI avant la première release** : nom du projet `basicfoncierv2`, propriétaire `AntoinePetit95`, dépôt `basicfoncierv2`, workflow `publish.yml`, environnement `pypi`. Sans cette déclaration, le job échoue à l'authentification.
+
 ## 2026-08-09 — Préparation d'un paquet publiable
 
 **Demande :** README pensé pour un public extérieur, `py.typed`, `CHANGELOG`, suppression d'`adresse`, et vigilance sur les informations internes puisque le paquet ira sur PyPI.

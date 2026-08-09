@@ -3,7 +3,9 @@
 Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et le
 versionnage [SemVer](https://semver.org/lang/fr/).
 
-## [Non publié]
+## [0.1.0] — 2026-08-09
+
+Première version publiée. Parité fonctionnelle avec `basicfoncier`.
 
 ### Ajouté
 

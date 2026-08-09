@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "basicfoncierv2"
-version = "0.0.1"
+version = "0.1.0"
 description = "Références cadastrales et superficies foncières, vectorisées sur pandas"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Unlicense"
 license-files = ["LICENSE"]
-authors = [{ name = "Antoine PETIT", email = "antoine.petit@energie-fonciere.fr" }]
+authors = [{ name = "Antoine PETIT", email = "antoine.petit@lilo.org" }]
 keywords = ["foncier", "cadastre", "parcelle", "insee", "pandas", "pyarrow"]
 # Pas de classificateur « License :: » : la licence est déjà déclarée en expression
 # PEP 639 ci-dessus, et les deux ensemble sont refusés.

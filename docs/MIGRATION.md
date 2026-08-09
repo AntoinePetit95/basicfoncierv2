@@ -13,7 +13,7 @@
 > prenait dans l'ordre `(insee, section, numero, com_abs)`. **Un appel positionnel recopié
 > tel quel produit une référence fausse sans lever d'erreur.** Relisez chaque appel.
 
-`basicfoncier` reste publié et fonctionnel. Aucune version de ce paquet ne sera retirée ni modifiée : la migration est volontaire et peut se faire module par module.
+[`basicfoncier`](https://github.com/AntoinePetit95/basicfoncier) reste disponible et fonctionnel — il n'a jamais été publié sur PyPI, il s'installe depuis son dépôt. Aucune version n'en sera retirée ni modifiée : la migration est volontaire et peut se faire module par module.
 
 ## Ce qui change
 

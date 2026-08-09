@@ -151,7 +151,7 @@
 
 ## 2026-08-09 — Nouveau paquet `basicfoncierv2` dans un dépôt séparé
 
-**Contexte :** `basicfoncier` est publié sur PyPI et sert de dépendance à d'autres programmes. Il doit rester intact, mais son API et ses performances ne conviennent plus.
+**Contexte :** `basicfoncier` est en production et sert de dépendance à d'autres programmes. Il doit rester intact, mais son API et ses performances ne conviennent plus.
 **Retenu :** un dépôt indépendant `basicfoncierv2`, avec son propre versioning et sa propre publication. Le v1 n'est plus touché ; la continuité est assurée par `docs/MIGRATION.md`.
 **Écarté :** un second paquet dans le dépôt du v1 (un seul workflow de publication pour deux paquets, et tout commit touche le dépôt en production) ; une branche v2 (une branche durablement divergente n'est pas un paquet distinct).
 
@@ -175,6 +175,6 @@ Le profil montre que le coût est intégralement dans les deux passes de `extrac
 
 ## 2026-08-09 — pytest, ruff et CI de test
 
-**Contexte :** le v1 n'a ni linter, ni formateur, ni job de test en CI ; son unique workflow GitHub Actions publie sur PyPI sans avoir rien vérifié. Un travail autonome n'a de filet que si la suite de tests existe et tourne.
+**Contexte :** le v1 n'a ni linter, ni formateur, ni job de test en CI ; son unique workflow GitHub Actions publierait sur PyPI sans avoir rien vérifié. Un travail autonome n'a de filet que si la suite de tests existe et tourne.
 **Retenu :** `pytest` pour les tests, `ruff` pour lint et format, un job GitHub Actions lançant les tests à chaque push. Dépendances de développement uniquement : elles n'atteignent pas les consommateurs du paquet.
 **Écarté :** `unittest` de la stdlib seul (zéro dépendance, mais paramétrage et fixtures nettement plus verbeux, et pas de mesure de couverture) ; pytest sans CI (rien ne garantit alors qu'un push ne casse pas la suite).

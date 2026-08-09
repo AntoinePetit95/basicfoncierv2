@@ -6,7 +6,7 @@
 
 ## 1. Le projet
 
-Bibliothèque Python de manipulation de références cadastrales et de superficies foncières, consommée par les scripts EF qui traitent des fichiers cadastraux (DGFiP, MAJIC, fichiers fonciers). Elle succède à `basicfoncier` (PyPI, en production) avec trois objectifs : API plus simple, tests intégrés, exécution vectorisée sur colonnes entières de DataFrame pandas.
+Bibliothèque Python de manipulation de références cadastrales et de superficies foncières, consommée par les scripts EF qui traitent des fichiers cadastraux (DGFiP, MAJIC, fichiers fonciers). Elle succède à `basicfoncier` (dépôt GitHub public, en production ; **jamais publié sur PyPI** — vérifié le 2026-08-09, l'index renvoie 404) avec trois objectifs : API plus simple, tests intégrés, exécution vectorisée sur colonnes entières de DataFrame pandas.
 
 **Statut actuel :** les trois modules publics — `ref_cadastrale`, `superficie`, `commune` — sont écrits et testés ; la parité fonctionnelle avec le v1 est atteinte. Le paquet n'est pas encore publié : version `0.0.1`, dépôt privé.
 
