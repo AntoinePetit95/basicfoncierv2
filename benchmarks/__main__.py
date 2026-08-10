@@ -34,7 +34,26 @@ ALIAS_V1 = "basicfoncier_v1"
 LIGNES_PAR_DEFAUT = 1_000_000
 REPETITIONS = 3
 DEPARTEMENTS_ALSACE_MOSELLE = ("57", "67", "68")
-METRES_CARRES_MAXIMUM = 2_000_000
+
+# Distribution des contenances cadastrales, ajustée sur 837 531 parcelles réelles
+# (fichiers des parcelles DGFiP, situation 2025, quatre départements). Une loi
+# log-normale reproduit les trois régimes d'écriture à moins d'un demi-point :
+#
+#                          réel    simulé
+#   >= 10 000 m² (ha)     21,4 %   21,6 %
+#   < 100 m² (ca seuls)   13,2 %   13,6 %
+#   médiane              1 396 m²  1 454 m²
+#
+# Ces valeurs comptent : une loi uniforme — ce que faisait ce générateur jusqu'au
+# 2026-08-09 — donne 99,5 % de parcelles avec hectares. Elle mesurait donc à plein
+# régime une branche du code que la réalité emprunte une fois sur cinq.
+LOG_MOYENNE_CONTENANCE = 7.28
+LOG_ECART_TYPE_CONTENANCE = 2.444
+
+#: Part des références tirées hors de la métropole continentale, pour que la mesure
+#: traverse aussi les motifs corses et ultramarins.
+PART_CORSE = 0.01
+PART_OUTRE_MER = 0.02
 
 
 # --------------------------------------------------------------------------------------
@@ -42,17 +61,39 @@ METRES_CARRES_MAXIMUM = 2_000_000
 # --------------------------------------------------------------------------------------
 
 
+def _codes_insee(generateur: np.random.Generator, nombre: int) -> pd.Series:
+    """Tire des codes Insee couvrant métropole, Corse et outre-mer.
+
+    Les trois territoires empruntent des branches distinctes des motifs : n'en mesurer
+    qu'une seule reviendrait à ignorer les deux autres.
+    """
+    metropole = pd.Series(generateur.integers(1_000, 95_999, nombre)).astype(str).str.zfill(5)
+
+    lettre = pd.Series(generateur.choice(["A", "B"], nombre))
+    commune = pd.Series(generateur.integers(1, 999, nombre)).astype(str).str.zfill(3)
+    corse = "2" + lettre + commune
+
+    departement = pd.Series(generateur.choice(["971", "972", "973", "974", "976"], nombre))
+    outre_mer = departement + pd.Series(generateur.integers(1, 99, nombre)).astype(str).str.zfill(2)
+
+    tirage = pd.Series(generateur.random(nombre))
+    return metropole.where(
+        tirage >= PART_CORSE + PART_OUTRE_MER,
+        corse.where(tirage >= PART_OUTRE_MER, outre_mer),
+    )
+
+
 def generer_references(nombre: int, graine: int = 20260809) -> pd.Series:
     """Fabrique une colonne de références cadastrales valides, dans les deux régimes.
 
     Les départements d'Alsace-Moselle reçoivent une section numérique, les autres une
     section alphabétique : mesurer sur des références que la bibliothèque rejetterait
-    ne mesurerait rien.
+    ne mesurerait rien. Corse et outre-mer sont représentés — voir :func:`_codes_insee`.
     """
     _refuser_nombre_nul(nombre)
 
     generateur = np.random.default_rng(graine)
-    insee = pd.Series(generateur.integers(1_000, 95_999, nombre)).astype(str).str.zfill(5)
+    insee = _codes_insee(generateur, nombre)
     numeros = pd.Series(generateur.integers(1, 9_999, nombre)).astype(str).str.zfill(4)
     sections_alphabetiques = pd.Series(generateur.choice(list(string.ascii_uppercase), nombre))
     sections_numeriques = pd.Series(generateur.integers(1, 99, nombre)).astype(str).str.zfill(2)
@@ -63,19 +104,24 @@ def generer_references(nombre: int, graine: int = 20260809) -> pd.Series:
 
 
 def generer_superficies(nombre: int, graine: int = 20260809) -> pd.Series:
-    """Fabrique une colonne de superficies en mètres carrés."""
+    """Fabrique une colonne de contenances suivant la distribution cadastrale réelle.
+
+    Une loi log-normale ajustée sur les fichiers de la DGFiP — voir
+    :data:`LOG_MOYENNE_CONTENANCE`. Les trois formes d'écriture sont ainsi mesurées dans
+    les proportions où elles se présentent, ce qu'une loi uniforme ne fait pas du tout.
+    """
     _refuser_nombre_nul(nombre)
 
     generateur = np.random.default_rng(graine)
-    return pd.Series(generateur.integers(0, METRES_CARRES_MAXIMUM, nombre))
+    tirage = generateur.lognormal(LOG_MOYENNE_CONTENANCE, LOG_ECART_TYPE_CONTENANCE, nombre)
+    return pd.Series(np.rint(tirage).astype("int64"))
 
 
 def generer_codes_insee(nombre: int, graine: int = 20260809) -> pd.Series:
     """Fabrique une colonne de codes Insee de commune, arrondissements compris."""
     _refuser_nombre_nul(nombre)
 
-    generateur = np.random.default_rng(graine)
-    return pd.Series(generateur.integers(1_000, 95_999, nombre)).astype(str).str.zfill(5)
+    return _codes_insee(np.random.default_rng(graine), nombre)
 
 
 def _refuser_nombre_nul(nombre: int) -> None:

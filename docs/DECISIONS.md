@@ -1,5 +1,29 @@
 # Décisions
 
+## 2026-08-09 — Le générateur de mesure suit la distribution cadastrale réelle
+
+**Contexte :** `generer_superficies` tirait une contenance uniforme entre 0 et 2 000 000 m². Confrontée aux fichiers des parcelles de la DGFiP (situation 2025), cette loi s'est révélée **l'inverse de la réalité** : elle produit 99,5 % de parcelles d'au moins un hectare, là où le cadastre réel en compte 21,4 %, avec une médiane à 1 396 m². Toutes les mesures de performance du projet ont donc été faites à plein régime sur une branche du code que la réalité emprunte une fois sur cinq.
+
+**Retenu :** une loi log-normale ajustée sur 837 531 contenances réelles (quatre départements), paramètres `mu = 7,28` et `sigma = 2,444`. Elle reproduit les trois régimes d'écriture à moins d'un demi-point : 21,6 % contre 21,4 % au-dessus de l'hectare, 13,6 % contre 13,2 % sous les 100 m². Les générateurs de références et de codes Insee reçoivent au passage une part de Corse et d'outre-mer, absents jusque-là.
+
+**Pourquoi :** un banc d'essai n'a de valeur que s'il ressemble à la charge. Le nôtre orientait vers l'optimisation d'un cas rare, et aurait fait juger inutile une amélioration qui vaut x1,5 en production. La loi log-normale est le modèle usuel des surfaces foncières, et l'ajustement est vérifié plutôt que postulé.
+
+**Écarté :** lire un vrai fichier DGFiP dans le banc d'essai (il cesserait d'être reproductible et autonome, et dépendrait de données non versionnables) ; conserver la loi uniforme en documentant son biais (on continuerait à mesurer la mauvaise chose, en le sachant).
+
+**À savoir :** les rapports face au v1 changent mécaniquement avec la distribution. Ceux publiés avant cette date portent sur une charge irréaliste.
+
+## 2026-08-09 — Écrire chaque superficie une fois, et non trois
+
+**Contexte :** `formater` construisait les trois écritures possibles — `ha a ca`, `a ca`, `ca` — pour **chaque** ligne, puis en sélectionnait une par `if_else`. Le travail de chaînes, qui est l'essentiel du coût (98 % du temps de `to_ha_a_ca` au profil), était donc payé trois fois.
+
+**Retenu :** le même motif « reconnaître puis découper » que la lecture emploie déjà. La forme la plus courte sert de fond, les deux autres sont construites sur les seuls sous-ensembles concernés (`pc.filter`) et recollées par `pc.replace_with_mask`.
+
+**Mesuré** sur un million de contenances réelles : **636 ms → 415 ms, x1,5**. Le gain dépend de la distribution — x1,3 sur l'ancienne loi uniforme, x2,4 sur des parcelles toutes petites — ce qui est précisément pourquoi la décision précédente devait venir en premier.
+
+**Vérifié :** résultats identiques à l'ancienne implémentation sur les 30 001 valeurs de 0 à 30 000, sur les bornes exactes des trois formes, sur les valeurs nulles, sur une colonne vide, sur des colonnes d'une seule forme, et sur 200 000 contenances réelles.
+
+**Écarté :** supprimer les conversions en texte redondantes — l'hypothèse paraissait solide, la mesure donne **x1,0**, aucun gain. Consigné parce que je l'aurais volontiers affirmée sans mesurer.
+
 ## 2026-08-09 — Arrondissements municipaux : conversion asymétrique, assumée
 
 **Contexte :** à Paris, Lyon et Marseille, le champ insee d'une référence cadastrale porte le code de l'**arrondissement municipal**, pas celui de la commune. La parcelle du pilier Ouest de la tour Eiffel est `75107000CR0002` ; aucune parcelle parisienne ne porte `75056`. Ce cas n'avait jamais été traité, ni dans le v1 ni dans le v2. Le v1 associait en outre aux arrondissements des codes commune inexistants (`75100`, `69300`).

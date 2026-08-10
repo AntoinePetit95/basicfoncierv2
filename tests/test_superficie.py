@@ -1,5 +1,7 @@
 """Comportement attendu des conversions de superficie."""
 
+from typing import ClassVar
+
 import numpy as np
 import pandas as pd
 import pyarrow as pa
@@ -99,6 +101,62 @@ class TestEcriture:
     def test_epargne_les_lignes_valides_qui_entourent_une_negative(self):
         resultat = to_ha_a_ca(pd.Series([93, -5]), invalide="manquant")
         assert resultat.iloc[0] == "93 ca"
+
+
+class TestMelangeDeFormes:
+    """L'écriture n'emprunte qu'une des trois formes par ligne : elles doivent se recoller.
+
+    Chaque ligne est écrite sur le sous-ensemble qui la concerne, puis recollée par
+    masque. Ces tests vérifient que le recollage ne décale ni ne mélange les lignes,
+    quelles que soient les proportions — y compris quand une forme est absente.
+    """
+
+    TROIS_FORMES: ClassVar = [
+        (0, "0 ca"),
+        (93, "93 ca"),
+        (2297, "22 a 97 ca"),
+        (11_320, "1 ha 13 a 20 ca"),
+    ]
+
+    def test_ecrit_les_trois_formes_melangees_dans_l_ordre(self):
+        metres = [valeur for valeur, _ in self.TROIS_FORMES]
+        attendues = [texte for _, texte in self.TROIS_FORMES]
+        assert list(to_ha_a_ca(pd.Series(metres))) == attendues
+
+    def test_conserve_l_ordre_quand_les_formes_alternent(self):
+        metres = pd.Series([11_320, 93, 2297, 0, 11_320])
+        assert list(to_ha_a_ca(metres)) == [
+            "1 ha 13 a 20 ca",
+            "93 ca",
+            "22 a 97 ca",
+            "0 ca",
+            "1 ha 13 a 20 ca",
+        ]
+
+    @pytest.mark.parametrize(
+        ("metres", "attendues"),
+        [
+            ([10_000, 20_000], ["1 ha 00 a 00 ca", "2 ha 00 a 00 ca"]),
+            ([100, 2297], ["1 a 00 ca", "22 a 97 ca"]),
+            ([0, 93], ["0 ca", "93 ca"]),
+        ],
+    )
+    def test_ecrit_une_colonne_d_une_seule_forme(self, metres, attendues):
+        """Une forme absente ne doit pas empêcher les autres d'être écrites."""
+        assert list(to_ha_a_ca(pd.Series(metres))) == attendues
+
+    def test_isole_une_valeur_absente_entre_deux_formes_differentes(self):
+        ecrites = to_ha_a_ca(pd.Series([11_320, None, 93]))
+        assert list(ecrites.isna()) == [False, True, False]
+        assert [ecrites.iloc[0], ecrites.iloc[2]] == ["1 ha 13 a 20 ca", "93 ca"]
+
+    @pytest.mark.parametrize("borne", [0, 1, 99, 100, 101, 9_999, 10_000, 10_001])
+    def test_ecrit_les_bornes_entre_formes_comme_une_valeur_seule(self, borne):
+        """Les seuils de 100 et 10 000 m² font basculer de forme : ils sont exacts."""
+        assert to_ha_a_ca(pd.Series([borne])).iloc[0] == to_ha_a_ca(borne)
+
+    def test_accepte_une_colonne_vide(self):
+        assert len(to_ha_a_ca(pd.Series([], dtype="int64"))) == 0
 
 
 class TestLecture:
