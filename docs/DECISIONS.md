@@ -1,5 +1,31 @@
 # Décisions
 
+## 2026-08-09 — Le générateur de mesure suit la distribution cadastrale réelle
+
+**Contexte :** `generer_superficies` tirait une contenance uniforme entre 0 et 2 000 000 m². Confrontée aux fichiers des parcelles de la DGFiP (situation 2025), cette loi s'est révélée **l'inverse de la réalité** : elle produit 99,5 % de parcelles d'au moins un hectare, là où le cadastre réel en compte 21,4 %, avec une médiane à 1 396 m². Toutes les mesures de performance du projet ont donc été faites à plein régime sur une branche du code que la réalité emprunte une fois sur cinq.
+
+**Retenu :** une loi log-normale ajustée sur 837 531 contenances réelles (quatre départements), paramètres `mu = 7,28` et `sigma = 2,444`. Elle reproduit les trois régimes d'écriture à moins d'un demi-point : 21,5 % contre 21,4 % au-dessus de l'hectare, 13,7 % contre 13,2 % sous les 100 m², médiane à 1 456 m² contre 1 396. Le tirage est en outre ramené à un minimum d'un mètre carré : les fichiers DGFiP ne contiennent aucune contenance nulle (vérifié sur 673 176 parcelles), là où l'arrondi de la log-normale en produit une pour deux mille. Les générateurs de références et de codes Insee reçoivent au passage une part de Corse et d'outre-mer, absents jusque-là.
+
+**Pourquoi :** un banc d'essai n'a de valeur que s'il ressemble à la charge. Le nôtre orientait vers l'optimisation d'un cas rare, et aurait fait juger inutile une amélioration qui vaut x1,5 en production. La loi log-normale est le modèle usuel des surfaces foncières, et l'ajustement est vérifié plutôt que postulé.
+
+**Écarté :** lire un vrai fichier DGFiP dans le banc d'essai (il cesserait d'être reproductible et autonome, et dépendrait de données non versionnables) ; conserver la loi uniforme en documentant son biais (on continuerait à mesurer la mauvaise chose, en le sachant).
+
+**À savoir :** les rapports face au v1 changent mécaniquement avec la distribution. Ceux publiés avant cette date portent sur une charge irréaliste ; les entrées concernées portent désormais un avertissement.
+
+**Limite assumée :** l'ajustement porte sur les **seuils d'écriture**, seuls déterminants du coût, et non sur la loi entière. La queue reste bien plus lourde que la réalité — quelques parcelles de plusieurs dizaines de km². Sans effet sur la mesure, mais ce générateur n'est pas un modèle du foncier français et ne doit pas être cité comme tel.
+
+## 2026-08-09 — Écrire chaque superficie une fois, et non trois
+
+**Contexte :** `formater` construisait les trois écritures possibles — `ha a ca`, `a ca`, `ca` — pour **chaque** ligne, puis en sélectionnait une par `if_else`. Le travail de chaînes, qui est l'essentiel du coût (98 % du temps de `to_ha_a_ca` au profil), était donc payé trois fois.
+
+**Retenu :** le même motif « reconnaître puis découper » que la lecture emploie déjà. La forme la plus courte sert de fond, les deux autres sont construites sur les seuls sous-ensembles concernés (`pc.filter`) et recollées par `pc.replace_with_mask`.
+
+**Mesuré** sur un million de contenances réelles : **636 ms → 415 ms, x1,5**. Le gain dépend entièrement de la distribution : x1,3 sur l'ancienne loi uniforme, où presque toutes les lignes prennent la forme longue, et **x4,9 à x5,2 sur une colonne entièrement sous les 100 m²**, où aucune ne la prend. C'est précisément pourquoi la décision précédente devait venir en premier : sur l'ancien générateur, on aurait lu x1,3 et jugé que cela n'en valait pas la peine.
+
+**Vérifié :** résultats identiques à l'ancienne implémentation sur les 30 001 valeurs de 0 à 30 000, sur les bornes exactes des trois formes, sur les valeurs nulles, sur une colonne vide, sur des colonnes d'une seule forme, et sur 200 000 contenances réelles.
+
+**Écarté :** supprimer les conversions en texte redondantes — l'hypothèse paraissait solide, la mesure donne **x1,0**, aucun gain. Consigné parce que je l'aurais volontiers affirmée sans mesurer.
+
 ## 2026-08-09 — Arrondissements municipaux : conversion asymétrique, assumée
 
 **Contexte :** à Paris, Lyon et Marseille, le champ insee d'une référence cadastrale porte le code de l'**arrondissement municipal**, pas celui de la commune. La parcelle du pilier Ouest de la tour Eiffel est `75107000CR0002` ; aucune parcelle parisienne ne porte `75056`. Ce cas n'avait jamais été traité, ni dans le v1 ni dans le v2. Le v1 associait en outre aux arrondissements des codes commune inexistants (`75100`, `69300`).
@@ -103,6 +129,8 @@
 
 **Mesuré :** lecture **x1,5** contre le v1 — 2 394 228 lignes/s contre 1 619 601, là où le v2 était à x0,6.
 
+> ⚠️ Chiffre obsolète : mesuré sur l'ancien générateur uniforme, qui produit des écritures presque toutes de la forme longue. Voir « Le générateur de mesure suit la distribution cadastrale réelle ». Le sens de la décision — le chemin rapide vaut mieux que le motif seul — n'est pas en cause ; le rapport chiffré, si.
+
 **Contrepartie, mesurée elle aussi :** sur une colonne sans **aucune** écriture canonique, le total est de 1 236 ms contre 1 254 pour l'implémentation précédente. Le test de forme et les découpes inutiles se paient donc à peu près exactement ce que le motif économise sur un jeu plus court. Le chemin rapide ne coûte rien quand il ne sert pas — c'est ce qui rend le pari sans risque, contrairement à celui pris sur les références, qui perd 15 % dans son cas défavorable.
 
 ## 2026-08-09 — La forme idu comme pivot de tout le module
@@ -147,6 +175,8 @@
 
 **Mesuré :** **x4,5 à x4,9** selon les exécutions — 2,2 à 2,5 millions de lignes/s contre environ 500 000 pour le v1.
 
+> ⚠️ Chiffre antérieur à la correction du générateur. Ici l'effet est faible : les références ne changent que par l'ajout de la Corse et de l'outre-mer, dont l'incidence mesurée sur le débit tient dans le bruit (1,00 à 1,07x). À reprendre tout de même avant toute publication du chiffre.
+
 **Contrepartie assumée :** sur une colonne composée *uniquement* de formes courtes, le test de forme échoue à chaque ligne et ne sert à rien : le débit tombe à 819 277 lignes/s, environ 15 % de moins que l'implémentation précédente. Le pari est que les fichiers fonciers sont massivement en forme idu. S'il s'avérait faux sur un usage réel, c'est cette décision qu'il faudrait rouvrir.
 
 ## 2026-08-09 — Nouveau paquet `basicfoncier` dans un dépôt séparé
@@ -166,6 +196,8 @@
 **Mesuré le 2026-08-09, à la première implémentation** (`python -m benchmarks`, 1 million de références) : **x2,1**, et non « un à deux ordres de grandeur » comme annoncé au moment de la décision. Cette prévision était fausse — `np.vectorize` tient 435 000 lignes/s, bien mieux que supposé.
 
 Le profil montre que le coût est intégralement dans les deux passes de `extract_regex` (740 ms sur 1 117 ms). La marge restante est identifiée et chiffrée : sur la forme idu à 14 caractères, la décomposition par découpes fixes coûte 155 ms et sa validation 117 ms, soit environ 290 ms au lieu de 1 117 ms — de l'ordre de x8 contre le v1. La décision reste valide, mais le gain visé ne sera atteint qu'avec ce chemin rapide.
+
+> ⚠️ Chiffre antérieur à la correction du générateur, et de surcroît dépassé par la décision « Normaliser puis découper » ci-dessus. Conservé pour l'histoire du raisonnement, pas comme état des performances.
 
 ## 2026-08-09 — Une fonction par concept, acceptant scalaire ou Series
 

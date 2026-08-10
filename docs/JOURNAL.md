@@ -1,5 +1,38 @@
 # Journal
 
+## 2026-08-10 — Revue de l'écriture filtrée : sept corrections, aucune sur le calcul
+
+**Demande :** respecter la boucle plan → mise en œuvre → revue → correction → fusion.
+**Fait :**
+- **Revue indépendante de la branche `perf/generateur-realiste-et-ecriture-filtree`.** Verdict : aucun défaut bloquant ni important. `formater` est correct, vérifié contre une réimplémentation de l'ancienne version sur 0 à 30 000 exhaustivement, sur les cas limites, sur des tranches non contiguës, sur 3 000 tirages aléatoires, sur 500 000 valeurs log-normales via l'API publique, et par mutation des nouveaux tests. Sept remarques mineures, toutes documentaires ou sur le banc d'essai.
+- **Le générateur produisait des parcelles de contenance nulle**, environ une pour deux mille. Vérifié sur les fichiers DGFiP : **0 contenance nulle sur 673 176**. Le tirage est désormais ramené à un minimum d'un mètre carré. Les trois régimes d'écriture ne bougent pas (21,5 % / 13,7 % / médiane 1 456 m²).
+- **Trois docstrings du banc d'essai disaient faux ou trop.** L'ajustement de la loi porte sur les seuils d'écriture, pas sur la loi entière — la queue reste bien plus lourde que la réalité, c'est désormais écrit. Le mélange métropole / Corse / outre-mer ne se justifie pas par le débit (effet mesuré 1,00 à 1,07x, soit du bruit) mais par le fait de ne jamais fabriquer une donnée que la bibliothèque rejetterait. Et `generer_codes_insee` annonçait « arrondissements compris » pour un pour deux mille.
+- **Un chiffre faux dans `DECISIONS.md` corrigé.** J'y avais écrit « x2,4 sur des parcelles toutes petites ». Le relecteur a reproduit x5,24 ; je mesure x4,94 sur une colonne entièrement sous 100 m². L'entrée porte désormais **x4,9 à x5,2**. Mon étiquette décrivait en réalité un jeu mixte, pas ce qu'elle disait.
+- **Les trois mesures de débit antérieures à la correction du générateur portent maintenant un avertissement explicite** dans `DECISIONS.md`. Le `CHANGELOG` les déclarait obsolètes, mais rien ne le signalait à qui lisait l'entrée.
+
+**Fichiers :** `benchmarks/__main__.py`, `basicfoncier/_internal/superficie_arrow.py`, `docs/DECISIONS.md`
+**Vérifié par :** `pytest` → 488 passed ; `ruff check .` + `ruff format --check .` → All checks passed ; distribution du générateur relevée après plafonnement (min 1, 0 nulle, 21,52 % ≥ 1 ha, 13,67 % < 100 m², médiane 1 456) ; gain de `formater` remesuré moi-même plutôt que repris du relecteur.
+**À savoir :**
+- La revue n'a rien trouvé sur le calcul lui-même, et tout sur ce que j'en avais écrit. Les sept remarques sont des écarts entre le code et sa documentation — chiffre non reproductible, justification inventée après coup, promesse d'une docstring que le code ne tient pas.
+- Le seul apport de code de cette passe, le plafonnement à 1 m², vient d'une propriété des données réelles que je n'avais pas vérifiée avant de déclarer le générateur « réaliste ».
+
+## 2026-08-09 — Banc d'essai réaliste, puis écriture des superficies en une passe
+
+**Demande :** avant d'envisager d'autres optimisations, corriger le générateur de mesure puis implémenter l'écriture filtrée.
+**Fait :**
+- **Le générateur mesurait l'inverse de la charge réelle.** Confronté aux fichiers des parcelles de la DGFiP, sa loi uniforme produit 99,5 % de parcelles d'au moins un hectare quand le cadastre réel en compte 21,4 %. Remplacé par une loi log-normale ajustée sur 837 531 contenances réelles, qui reproduit les trois régimes d'écriture à moins d'un demi-point.
+- Corse et outre-mer ajoutés aux générateurs de références et de codes Insee, absents jusque-là — vérifié : 1,01 % et 2,02 % obtenus pour 1 % et 2 % visés, et les 200 000 références produites sont toutes décomposables.
+- **`formater` n'écrit plus chaque ligne qu'une fois** au lieu de construire les trois formes possibles pour toutes. Même motif « reconnaître puis découper » que la lecture. **636 ms → 415 ms, x1,5** sur un million de contenances réelles.
+- 15 tests ajoutés sur le mélange des trois formes, les bornes de bascule (100 et 10 000 m²), les colonnes d'une seule forme et la colonne vide.
+
+**Fichiers :** `benchmarks/__main__.py`, `basicfoncier/_internal/superficie_arrow.py`, `tests/test_superficie.py`, `CHANGELOG.md`, `docs/DECISIONS.md`
+**Vérifié par :** `pytest` → 488 passed (473 avant) ; `ruff check .` → All checks passed ; équivalence avec l'ancienne implémentation confirmée sur les 30 001 valeurs de 0 à 30 000, les bornes exactes, les nuls, la colonne vide et 200 000 contenances réelles ; `python -m benchmarks` → écriture 0,439 s contre 0,636 s.
+**À savoir :**
+- **Une hypothèse que j'ai testée et qui était fausse :** supprimer les conversions en texte redondantes ne gagne rien du tout (x1,0). Je l'aurais affirmée sans mesurer.
+- Le profil a montré que la conversion pandas ↔ Arrow est **gratuite** — moins d'une milliseconde par million de lignes dans les deux sens. Tout le temps est dans les noyaux de calcul.
+- Contexte utile pour la suite : `read_parquet` coûte 80 ms par million de lignes, `read_csv` en coûte 915. Pour une chaîne de traitement alimentée en CSV, le format d'entrée pèse plus lourd que tout ce que la bibliothèque peut gagner.
+- Les rapports de débit face au v1 publiés avant cette correction portent sur une charge irréaliste. Ceux d'aujourd'hui sont les premiers comparables à la production.
+
 ## 2026-08-09 — Le paquet reprend le nom `basicfoncier`, en version 1.0.0
 
 **Demande :** publier sous le nom `basicfoncier` directement, les utilisateurs n'ayant pas à savoir qu'il s'agit d'une v2. Information complémentaire : aucune parcelle de Paris, Lyon ou Marseille n'a jamais été traitée.

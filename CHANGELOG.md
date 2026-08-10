@@ -3,6 +3,22 @@
 Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et le
 versionnage [SemVer](https://semver.org/lang/fr/).
 
+## [Non publié]
+
+### Modifié
+
+- `to_ha_a_ca` écrit chaque superficie une seule fois au lieu de construire les trois
+  formes possibles pour chaque ligne : **x1,5** sur un million de contenances réelles.
+  Résultats identiques, aucun changement d'API.
+
+### Interne
+
+- Le générateur du banc d'essai suit désormais la distribution cadastrale réelle, ajustée
+  sur 837 531 contenances de la DGFiP. Il tirait jusqu'ici une loi uniforme, qui produit
+  99,5 % de parcelles d'au moins un hectare contre 21,4 % dans la réalité. Corse et
+  outre-mer y sont également représentés. Les rapports de débit publiés avant cette
+  correction portent sur une charge irréaliste.
+
 ## [1.0.0] — 2026-08-09
 
 Première version publiée sur PyPI. Réécriture complète de `basicfoncier` `0.1`, dont
