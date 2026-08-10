@@ -78,6 +78,11 @@ def formater(metres_carres: pa.Array) -> pa.Array:
     le triple du travail de chaînes ; sur la distribution cadastrale réelle, où quatre
     parcelles sur cinq n'atteignent pas l'hectare, la forme la plus chère était celle
     qu'on calculait le plus inutilement.
+
+    :param metres_carres: colonne Arrow d'entiers, **d'un seul tenant**. Comme
+        :func:`lire`, cette fonction emploie ``replace_with_mask``, qui refuse un
+        ``ChunkedArray`` ; le recollage est fait à l'entrée par
+        :func:`~basicfoncier._internal.appel.en_colonne_arrow`.
     """
     composantes = _composantes(metres_carres)
     hectares, ares, centiares = (composantes[nom] for nom in COMPOSANTES)
@@ -85,9 +90,14 @@ def formater(metres_carres: pa.Array) -> pa.Array:
     # La forme la plus courte sert de fond : c'est aussi la moins chère à construire.
     ecritures = pc.binary_join_element_wise(_en_texte(centiares), " ca", "")
 
+    # Masques disjoints par construction : le second remplacement ne peut pas défaire
+    # le premier, quel que soit l'ordre.
     avec_hectares = pc.fill_null(pc.greater(hectares, 0), False)
     avec_ares = pc.and_(pc.invert(avec_hectares), pc.fill_null(pc.greater(ares, 0), False))
 
+    # Les deux gardes qui suivent sont une économie, pas une protection :
+    # ``replace_with_mask`` accepte un masque entièrement faux avec un remplacement vide.
+    # Elles évitent de construire une jointure de chaînes dont aucune ligne ne sert.
     if pc.any(avec_ares).as_py():
         ecritures = pc.replace_with_mask(
             ecritures,
