@@ -32,8 +32,15 @@ basicfoncier/   ref_cadastrale.py · superficie.py · commune.py
   _internal/      implémentations vectorisées, non publiques
 tests/            un fichier de test par module du paquet
 benchmarks/       mesures de débit, critère de succès des tâches « vitesse »
-docs/             JOURNAL · BUGS · DECISIONS · MIGRATION · VOCABULAIRE
+docs/             JOURNAL · BUGS · DECISIONS · CHANTIERS · MIGRATION · VOCABULAIRE
 ```
+
+`docs/CHANTIERS.md` est propre à ce dépôt — il ne fait pas partie du socle EF, qui n'en
+prévoit que trois. Il porte ce qui est **décidé mais pas fait**, ce qui **reste à
+décider** (chaque entrée avec sa recommandation *et* ce qui la déciderait), et les
+**décisions prises seul** en mode autonome, consignées pour pouvoir être contredites.
+Une entrée le quitte quand elle est faite — elle passe au `JOURNAL` — ou tranchée — elle
+passe aux `DECISIONS`. Ce fichier ne grossit pas : il se vide.
 
 ---
 
@@ -167,9 +174,9 @@ Règles :
 
 ---
 
-## 9. Journal, bugs, décisions, chantiers
+## 9. Journal, bugs, décisions
 
-Quatre fichiers, quatre usages. **Ce `CLAUDE.md` n'en fait partie d'aucun** : il ne s'allonge pas au fil des tâches.
+Trois fichiers, trois usages. **Ce `CLAUDE.md` n'en fait partie d'aucun** : il ne s'allonge pas au fil des tâches.
 
 ### `docs/JOURNAL.md`
 
@@ -213,16 +220,6 @@ Une entrée uniquement quand un choix engage la suite du projet — pas pour cha
 ```
 
 Avant de proposer une architecture, relis ce fichier : la question a peut-être déjà été tranchée.
-
-### `docs/CHANTIERS.md`
-
-Ce qui est **décidé mais pas fait**, et ce qui **reste à décider**. Trois sections :
-
-- **Chantiers ouverts** — le travail cadré et en attente, avec ses unités.
-- **Décisions en attente** — ce qui ne peut pas se trancher seul. Chaque entrée porte une recommandation **et ce qui la déciderait** : une décision en attente sans critère de sortie est une question qu'on repose indéfiniment.
-- **Décisions prises seul** — celles qu'un travail en autonomie a fallu trancher pour avancer. Elles sont là pour être contredites, pas pour être défendues.
-
-Une entrée quitte ce fichier quand elle est faite (elle passe au `JOURNAL`) ou tranchée (elle passe aux `DECISIONS`). Ce fichier ne grossit pas : il se vide.
 
 ---
 

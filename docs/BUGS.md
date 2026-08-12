@@ -81,7 +81,7 @@ superficie.to_ha_a_ca(contenances.astype("category"))
 
 **Portée :** aucune donnée fausse produite — le refus est franc et le message est clair. C'est une gêne d'usage, pas une erreur de calcul. L'appelant peut contourner par `.astype(str)`, au prix d'une conversion qui défait précisément l'encodage.
 
-**Ce qui le rend gênant :** ces colonnes sont celles où la bibliothèque serait la plus rapide. Sur une colonne de codes Insee déjà encodée, le calcul mesuré passe de 253 ms à 2,7 ms — voir [DECISIONS.md](DECISIONS.md), entrée du 2026-08-12. La bibliothèque refuse donc son meilleur cas.
+**Ce qui le rend gênant :** ces colonnes sont celles où la bibliothèque serait la plus rapide. Sur une colonne de codes Insee déjà encodée, le calcul mesuré passe de **185,9 ms à 11,1 ms** — colonne « Entrée déjà encodée » du tableau de [DECISIONS.md](DECISIONS.md), entrée du 2026-08-12. La bibliothèque refuse donc son meilleur cas.
 
 **Traitement prévu :** unité 2 du chantier 1.1.0, voir [CHANTIERS.md](CHANTIERS.md).
 

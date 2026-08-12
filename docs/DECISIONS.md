@@ -2,28 +2,38 @@
 
 ## 2026-08-12 — Calculer sur les valeurs distinctes, et non sur les lignes
 
-**Contexte :** une colonne foncière porte très peu de valeurs différentes. Sur 1 000 000 de parcelles DGFiP réelles, les codes Insee ne prennent que **2 811 valeurs distinctes** — chacune est donc traitée 575 fois pour un résultat identique. Mieux : les parcelles d'un lot sont mitoyennes, si bien que dans l'ordre du fichier ces valeurs ne sont pas seulement répétées, elles sont **contiguës** : 1 792 plages pour un million de lignes, soit 558 parcelles consécutives par plage.
+**Contexte :** une colonne foncière porte très peu de valeurs différentes. Sur un million de parcelles DGFiP réelles prises au hasard, les codes Insee ne prennent que **2 811 valeurs distinctes** — chacune est donc traitée 355 fois pour un résultat identique. Mieux : les parcelles d'un lot sont mitoyennes, si bien que dans l'ordre du fichier ces valeurs ne sont pas seulement répétées, elles sont **contiguës** : **1 792 plages** pour un million de lignes, soit 558 parcelles consécutives par plage.
 
 **Retenu :** deux encodages complémentaires, choisis par une sonde. L'**encodage par plages** (`run_end_encode`, un balayage linéaire) exploite la contiguïté ; l'**encodage par dictionnaire** (`dictionary_encode`, une table de hachage) exploite la répétition où qu'elle soit. Le calcul porte sur les valeurs encodées, puis le résultat est redistribué.
 
-**Mesuré** sur 1 000 000 de lignes réelles :
+**Mesuré** sur les 1 000 000 premières lignes d'un échantillon de 1 616 867 parcelles DGFiP réelles. Les quatre variantes sont chronométrées **à tour de rôle dans une même boucle**, neuf tours, médianes : la machine dérive de ±15 % entre exécutions, si bien que deux mesures prises séparément ne se comparent pas. Tous les rapports ci-dessous se déduisent des temps affichés à côté d'eux.
 
-| Colonne | Actuel | Plages | Dictionnaire |
-|---|---|---|---|
-| insee, ordre du fichier (1 792 plages) | 271 ms | **19,7 ms — x13,4** | 39,3 ms — x6,7 |
-| insee, mélangé (998 864 plages) | 180 ms | 240 ms — **x0,77** | 39,2 ms — x4,7 |
-| contenances, ordre du fichier (737 027 plages) | 393 ms | 315 ms — x1,27 | 64,2 ms — **x6,2** |
+| Colonne (1 000 000 lignes) | Actuel | Plages | Dictionnaire | Entrée déjà encodée |
+|---|---|---|---|---|
+| **insee, ordre du fichier**<br>1 792 plages, 1 792 distinctes | 185,9 ms | **18,5 ms — x10,0** | 34,0 ms — x5,5 | 11,1 ms — x16,8 |
+| **insee, mélangé**<br>998 864 plages, 2 811 distinctes | 226,4 ms | 273,2 ms — **x0,83** | 41,7 ms — x5,4 | 11,6 ms — x19,5 |
+| **contenances, ordre du fichier**<br>737 027 plages, 66 003 distinctes | 389,4 ms | 334,8 ms — x1,16 | 62,9 ms — **x6,2** | 45,7 ms — x8,5 |
+| **références (idu), ordre du fichier**<br>934 186 plages, 810 199 distinctes | 109,8 ms | 181,6 ms — x0,60 | 265,5 ms — **x0,41** | 92,3 ms — x1,19 |
 
-**Les deux contreparties, mesurées elles aussi.** Le dictionnaire tombe à **x0,60** sur les références cadastrales, uniques à 82 % : l'encodage seul y coûte 224 ms pour rien. Les plages tombent à **x0,77** dès que l'ordre se perd — un `sort_values`, un `merge` ou une jointure suffisent. Aucune des deux techniques n'est donc applicable sans garde.
+Si l'appelant accepte de recevoir une colonne encodée plutôt que des chaînes, le calcul sur l'insee ordonné tombe à **1,7 ms** — la redistribution disparaît entièrement. Mesuré à part, donc non entrelacé avec le reste du tableau.
 
-**La garde**, mesurée : sonder 10 000 lignes coûte **0,84 ms**, soit 0,3 % du calcul. Le critère n'est pas le taux de valeurs distinctes de l'échantillon mais sa **saturation** : sur une colonne mélangée, l'insee sonde 0,22 et l'idu 0,998, alors que le premier compte 2 811 valeurs distinctes et le second 810 199. Lu comme une fréquence, ce taux se trompe sur les deux.
+**Les deux contreparties, mesurées elles aussi, et sévères.**
+
+- **Le dictionnaire tombe à x0,41 sur les références cadastrales**, uniques à 81 %. Le hachage y coûte à lui seul **176,9 ms** contre 109,8 ms pour le calcul complet : on paie plus cher que ce qu'on optimise.
+- **Les plages tombent à x0,83 dès que l'ordre se perd** — un `sort_values`, un `merge` ou une jointure suffisent — et ne rendent que x1,16 sur les contenances, que le voisinage cadastral ne groupe pas : deux parcelles mitoyennes n'ont pas la même surface.
+
+Aucune des deux techniques n'est donc applicable sans garde. C'est la garde, et non l'encodage, qui est le cœur du travail.
+
+**La garde**, mesurée : sonder 10 000 lignes coûte **0,84 ms**, soit 0,2 à 0,8 % du calcul. Le critère n'est pas le taux de valeurs distinctes de l'échantillon mais sa **saturation** : sur une colonne mélangée, l'insee sonde 0,22 et l'idu 0,998, alors que le premier compte 2 811 valeurs distinctes et le second 810 199. Lu comme une fréquence, ce taux se trompe sur les deux.
+
+**Erratum.** Une première campagne, publiée puis retirée avant fusion, annonçait x13,4 sur l'insee ordonné et x0,60 sur les références. Elle chronométrait la référence deux fois — une fois pour la ligne du tableau, une fois pour le dénominateur des rapports — si bien que les rapports ne se déduisaient pas des temps affichés à côté. La revue l'a relevé par une simple division. Les chiffres retenus ci-dessus sont ceux de la campagne entrelacée.
 
 **Écarté, avec les mesures :**
 
 - **Le threading.** x1,6 à 3,2 à quatre fils, x3,9 combiné à l'écriture filtrée — et pire à huit fils, la mémoire étant le facteur limitant. Écarté par l'utilisateur : une bibliothèque appelée depuis un pool de processus prendrait des cœurs à ses appelants sans le leur dire.
 - **Cython sur l'orchestration.** Mesuré en comparant le coût à une ligne, entièrement Python, au coût au million : le Python ne pèse que **0,27 à 0,59 %** du temps. Tout le reste est déjà dans les noyaux C++ d'Arrow. Il n'y a rien à y prendre.
 - **Le noyau fusionné, écrit en numpy.** L'idée est bonne : remplacer une quinzaine de noyaux Arrow enchaînés par un seul passage écrivant les octets. Implémenté et vérifié identique sur les 30 001 valeurs de 0 à 30 000, sur les bornes et sur 200 000 tirages — puis mesuré : **x1,40**. Le profil dit pourquoi : 125 ms partent à fabriquer 81 Mo d'indices et 174 ms en `log10`, deux coûts qu'une boucle C ne paierait pas et que numpy ne sait pas éviter. Remplacer 40 lignes lisibles par de l'arithmétique de tampon d'octets pour x1,4 est un mauvais échange. **Consigné parce que je pariais bien plus haut.**
-- **La mise en cache.** Pour reconnaître une colonne déjà vue, il faut lire tous ses octets : c'est exactement ce que fait `dictionary_encode`, à 45 ms. Le cache coûterait donc le prix de la stratégie gagnante, et ne rapporterait que si la **même** colonne était passée deux fois — ce qui n'arrive pas dans une chaîne de traitement. Une clé par identité d'objet éviterait le hachage mais serait fausse dès qu'une colonne est modifiée en place.
+- **La mise en cache.** Pour reconnaître une colonne déjà vue, il faut lire tous ses octets : c'est exactement ce que fait `dictionary_encode`, mesuré à **23,7 ms sur l'insee ordonné, soit 70 % du coût total de la stratégie gagnante** (34,0 ms). Fabriquer la clé reviendrait donc presque aussi cher que faire le travail, pour un gain qui ne viendrait que si la **même** colonne était passée deux fois — ce qui n'arrive pas dans une chaîne de traitement, où chaque colonne est traduite une fois. Une clé par identité d'objet éviterait le hachage mais serait fausse dès qu'une colonne est modifiée en place, et retiendrait la mémoire indéfiniment.
 
 **Reporté :** le noyau fusionné écrit en **C ou Cython**. Le plancher mesuré — écrire un million de chaînes, sans aucun calcul — est de **25 ms contre 500 ms** aujourd'hui : la marge est réelle, de l'ordre de x10 à x20, et c'est la seule piste qui y donne accès. Elle se paie en roues binaires par plateforme et par version de Python, en compilateur dans la CI, et par la fin de la roue pure Python qui s'installe partout. À rouvrir si le dictionnaire ne suffit pas.
 
