@@ -1,5 +1,23 @@
 # Journal
 
+## 2026-08-12 — Campagne de mesure : cinq pistes de performance, une retenue
+
+**Demande :** le threading occupe des fils que d'autres processus pourraient utiliser — chercher d'autres possibilités, Cython par exemple. Puis : vérifier qu'une autre technique ne serait pas plus efficace, la mise en cache notamment. Puis : cadrer l'implémentation retenue.
+**Fait :**
+- **Cinq pistes mesurées sur 1 616 867 parcelles DGFiP réelles**, une retenue. Le détail chiffré, contreparties comprises, est dans `DECISIONS.md`.
+- **Cython sur le code actuel : rien à prendre.** Mesuré en comparant le coût à une ligne — entièrement Python — au coût au million : le Python pèse **0,27 à 0,59 %** du temps. Le reste est déjà du C++ compilé, dans les noyaux Arrow.
+- **Le noyau fusionné, écrit en numpy, implémenté et vérifié** identique sur les 30 001 valeurs de 0 à 30 000, sur les bornes et sur 200 000 tirages. Mesuré : **x1,40**. Écarté.
+- **La mise en cache écartée sur un raisonnement chiffré :** reconnaître une colonne exige d'en lire tous les octets, soit 45 ms — le prix de la stratégie gagnante, pour un gain qui ne viendrait que si la même colonne était passée deux fois.
+- **Le levier retenu vient d'une remarque de l'utilisateur** : les lots de parcelles ne sont pas isolés, ils sont mitoyens. Vérifié : dans l'ordre du fichier, un million de codes Insee ne forment que **1 792 plages**. L'encodage par plages y donne **x13,4**, le double du dictionnaire — mais **x0,77** dès que l'ordre se perd. Les deux techniques sont complémentaires, pas concurrentes.
+- **Un défaut trouvé en chemin :** les colonnes `category` sont refusées, alors que ce sont celles où la bibliothèque serait la plus rapide (253 ms → 2,7 ms). Consigné dans `BUGS.md`.
+- `docs/CHANTIERS.md` ouvert : ce qui est décidé mais pas fait, ce qui reste à décider, et les décisions que j'ai prises seul — consignées là pour pouvoir être contredites.
+
+**Fichiers :** `docs/{DECISIONS,BUGS,CHANTIERS,JOURNAL}.md`
+**Vérifié par :** toutes les mesures sur données DGFiP réelles, jamais sur le générateur ; comparaisons entrelacées et médianes, la machine dérivant de ±15 % entre exécutions ; chaque implémentation prototypée confrontée à l'implémentation en place avant d'être chronométrée.
+**À savoir :**
+- **Deux résultats que je n'attendais pas.** Le noyau fusionné en numpy : je le pariais bien plus haut que x1,40 ; le profil montre que 125 ms partent en fabrication d'indices et 174 ms en `log10`, deux coûts qu'une boucle C ne paierait pas et que numpy ne sait pas éviter. Et la sonde de cardinalité : le critère juste est la **saturation** de l'échantillon, pas son taux de valeurs distinctes — lu comme une fréquence, ce taux se trompe sur l'insee (0,22 pour 2 811 valeurs distinctes) comme sur l'idu (0,998 pour 810 199).
+- Aucun code de la bibliothèque n'a été modifié pendant cette campagne. Tous les prototypes sont restés hors du dépôt.
+
 ## 2026-08-10 — Revue de l'écriture filtrée : sept corrections, aucune sur le calcul
 
 **Demande :** respecter la boucle plan → mise en œuvre → revue → correction → fusion.

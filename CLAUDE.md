@@ -167,9 +167,9 @@ Règles :
 
 ---
 
-## 9. Journal, bugs, décisions
+## 9. Journal, bugs, décisions, chantiers
 
-Trois fichiers, trois usages. **Ce `CLAUDE.md` n'en fait partie d'aucun** : il ne s'allonge pas au fil des tâches.
+Quatre fichiers, quatre usages. **Ce `CLAUDE.md` n'en fait partie d'aucun** : il ne s'allonge pas au fil des tâches.
 
 ### `docs/JOURNAL.md`
 
@@ -213,6 +213,16 @@ Une entrée uniquement quand un choix engage la suite du projet — pas pour cha
 ```
 
 Avant de proposer une architecture, relis ce fichier : la question a peut-être déjà été tranchée.
+
+### `docs/CHANTIERS.md`
+
+Ce qui est **décidé mais pas fait**, et ce qui **reste à décider**. Trois sections :
+
+- **Chantiers ouverts** — le travail cadré et en attente, avec ses unités.
+- **Décisions en attente** — ce qui ne peut pas se trancher seul. Chaque entrée porte une recommandation **et ce qui la déciderait** : une décision en attente sans critère de sortie est une question qu'on repose indéfiniment.
+- **Décisions prises seul** — celles qu'un travail en autonomie a fallu trancher pour avancer. Elles sont là pour être contredites, pas pour être défendues.
+
+Une entrée quitte ce fichier quand elle est faite (elle passe au `JOURNAL`) ou tranchée (elle passe aux `DECISIONS`). Ce fichier ne grossit pas : il se vide.
 
 ---
 
