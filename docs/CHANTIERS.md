@@ -93,8 +93,9 @@ chiffres dépendent entièrement de la forme des données — la même biblioth�
 sur des références cadastrales, uniques à 81 %.
 
 *Recommandation :* annoncer le principe (« le calcul porte sur les valeurs distinctes »)
-sans le chiffre, et renvoyer aux mesures de `DECISIONS.md`. **Ce qui déciderait :** l'idée
-qu'on se fait du public du paquet.
+sans le chiffre, et renvoyer aux mesures de `DECISIONS.md`. **Ce qui déciderait :** un
+utilisateur extérieur — issue, question, téléchargement suivi d'un rapport — qui montre
+qu'il a choisi ou écarté le paquet sur une question de débit.
 
 ### Jusqu'où faire remonter le contrat d'appel dans `_internal/appel.py` ?
 
