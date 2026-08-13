@@ -3,9 +3,13 @@
 ## Défauts hérités de `basicfoncier` v1
 
 **Aucun de ces défauts n'affecte `basicfoncier`** : ils sont tous corrigés ici. Ils
-restent consignés parce que le v1 est toujours publié et utilisé, et que quiconque migre
-doit savoir que ses données produites peuvent être fausses depuis plus longtemps qu'il ne
-le croit. Ils ne seront pas corrigés dans le v1, qui est figé.
+restent consignés parce que quiconque migre doit savoir que ses données produites peuvent
+être fausses depuis plus longtemps qu'il ne le croit.
+
+> **Le dépôt du v1 est destiné à être supprimé** — voir [CHANTIERS.md](CHANTIERS.md). Le
+> code fautif est donc recopié ci-dessous, à l'état du commit `7f2d199`, avec son chemin
+> d'origine. Sans cette copie, ces constats deviendraient des affirmations sans source
+> vérifiable le jour où le dépôt disparaîtra.
 
 ### `com_insee_from_code_dep_code_com` tronque l'outre-mer
 
@@ -19,6 +23,24 @@ com_insee_from_code_dep_code_com("78", "048")  → "78048"  (correct)
 ```
 
 L'aller-retour est donc rompu outre-mer : décomposer `97215` donne `("972", "15")`, que recomposer ne redonne pas `97215`.
+
+**Code d'origine** — `basicfoncier/utils/communes_departements_regions.py`, lignes 30 à 40 :
+
+```python
+def com_insee_from_code_dep_code_com(code_dep: str, code_com: str) -> str:
+    """
+    Renvoie le code insee d'une commune d'après les codes département et commune
+    :param code_dep: le code département sur 2 ou 3 chiffres (outre-mer)
+    :param code_com: le code commune sur 3 ou 2 chiffres (outre-mer)
+    :return: dode insee commune sur 5 chiffres
+    """
+    if len(code_dep) == 3:
+        code_dep = code_dep[:2]
+
+    return code_dep + code_com
+```
+
+La docstring annonce pourtant le cas outre-mer, « 2 ou 3 chiffres » : le code le connaît et le supprime.
 
 **Traitement dans le v2 :** `commune.insee_from_parts` complète le code commune à la largeur que lui laisse le département — 3 caractères en métropole, 2 outre-mer — et valide le résultat. L'aller-retour est testé comme propriété sur tous les territoires.
 
@@ -36,6 +58,18 @@ superficie_from_str("1 ha 13 a 20 ca") → 11 320  (correct : composantes compl�
 
 **Portée réelle :** les sorties de `superficie_ha_a_ca` sont complétées, donc l'aller-retour interne au v1 est juste. Le défaut se déclenche sur des données venues d'ailleurs — et il y en a dans les fixtures du v1 lui-même (`tests/test_vectorized.py` contient `'1 ha  0 a  3 ca'`, `'1 a 5 ca'`).
 
+**Code d'origine** — `basicfoncier/superficie.py`, lignes 29 à 35 :
+
+```python
+def superficie_from_str(sup_string: str) -> int:
+    """
+    Récupère la valeur en m² depuis une superficie formatée en "_ ha __ a __ ca"
+    :param sup_string: chaîne de caractères
+    :return: int
+    """
+    return int(sup_string.replace(" ", "").replace("a", "").replace("c", "").replace("h", ""))
+```
+
 **Aggravation :** comme pour le bug de décomposition, le wrapper pandas attrape l'exception dans un `except:` nu. Ici il n'y a même pas d'exception : la valeur fausse passe silencieusement.
 
 **Traitement dans le v2 :** `superficie.from_ha_a_ca` lit par motif et non par suppression de lettres. Les écritures non complétées sont testées explicitement, et une écriture illisible lève une erreur au lieu de produire un nombre.
@@ -48,8 +82,42 @@ superficie_from_str("1 ha 13 a 20 ca") → 11 320  (correct : composantes compl�
 
 ```
 ref_parcelle_to_idu("972150000C0302")      → "972150302000000C"   # faux, 16 caractères
-ref_parcelle_to_short_id("972150000C0302") → ValueError: invalid literal for int(): '0C'
+ref_parcelle_to_short_id("972150000C0302") → ValueError: invalid literal for int() with base 10: '0C'
 ```
+
+**Portée réelle, mesurée par exécution** — ce n'est pas un cas limite, c'est le cas normal. Seule l'Alsace-Moselle en réchappe :
+
+| Entrée | `ref_parcelle_to_idu` | `ref_parcelle_to_short_id` |
+|---|---|---|
+| `78048000AB0011` (métropole) | `78048001100000AB` — faux, 16 caractères | `ValueError` |
+| `78048AB11` (forme courte) | `78048001100000AB` — faux | `ValueError` |
+| `2A004000AB0011` (Corse) | `2A004001100000AB` — faux | `ValueError` |
+| `97213000AB0011` (outre-mer) | `97213001100000AB` — faux | `ValueError` |
+| `57463000120011` (Alsace-Moselle) | `57463000120011` — **correct** | `574631211` |
+
+Hors Alsace-Moselle, une référence **déjà** en forme idu n'est donc pas rendue telle quelle : elle ressort déformée. Et l'Alsace-Moselle, seule à réchapper, est le cas particulier : la branche fautive est celle qui couvre tout le reste du territoire.
+
+**Code d'origine** — `basicfoncier/ref_cadastrales.py`, fonction `ref_parcelle_to_parts` (lignes 35 à 74). Seuls les deux `return` et leur garde sont reproduits : **lignes 44 à 48**, puis **ligne 74**. Recopié tel quel, sans annotation ; les `[…]` marquent ce qui est omis. Le bloc n'est pas balisé `python` : ce n'est pas du code exécutable, mais un extrait troué.
+
+```
+[…] lignes 35 à 43 : signature, docstring, ligne vide
+
+    # Alsace-Moselle : code uniquement numérique.
+    if ref.startswith('57') or ref.startswith('67') or ref.startswith('68'):
+        assert len(ref) == 14
+        assert ref.isnumeric()
+        return ref[0:5], ref[8:10], ref[10:], ref[5:8]
+
+[…] lignes 49 à 73 : découpe de la branche générale
+
+    return com_insee.zfill(5), com_abs.zfill(3), section.zfill(2), numero.zfill(4)
+```
+
+Les deux `return` de la même fonction ne suivent pas le même ordre. Le premier rend `(insee, section, numero, com_abs)`, le second `(insee, com_abs, section, numero)` — la docstring, elle, n'annonce que le second. Le v1 ne commente ni l'un ni l'autre : c'est la lecture des découpes qui le montre.
+
+Les deux appelants (`ref_cadastrales.py:84` et `:95`) dépaquettent `com_insee, section, numero, com_abs` — l'ordre de la branche Alsace-Moselle. C'est donc la branche **générale** qui est lue de travers, à chaque appel.
+
+À noter aussi : la validation d'une donnée venue de l'extérieur y est faite par `assert`. Le paquet v1 ne contient **aucun** `raise` ; ses neuf validations sont toutes des assertions. Lancé avec `-O`, il ne valide donc plus rien.
 
 **Aggravation :** les wrappers de `vectorized_functions/for_pandas/_nullable.py` attrapent l'exception dans un `except:` nu et renvoient `NA`. En usage pandas, la fonction **échoue silencieusement** : la colonne se remplit de `NA` sans qu'aucune erreur ne remonte.
 

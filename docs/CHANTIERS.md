@@ -52,22 +52,22 @@ nom. Le paquet s'appelle déjà `basicfoncier` sur PyPI ; seul le dépôt garde 
 
 Ordre à respecter, faute de quoi on casse ce qu'on veut préserver :
 
-1. **Vérifier une dernière fois qu'aucun programme n'installe depuis l'URL GitHub du v1.**
+1. ~~**Recopier le code fautif du v1 dans la documentation.**~~ **Fait le 2026-08-13** :
+   les trois extraits sont dans `BUGS.md`, avec leur chemin d'origine et le commit. Trois
+   textes publiés que cette suppression allait rendre faux sont corrigés : la promesse
+   « le v1 reste disponible » (`README`, `MIGRATION.md`), le conseil d'épinglage qui
+   renvoyait à une version absente de PyPI, et les URL de `pyproject.toml`.
+2. **Vérifier une dernière fois qu'aucun programme n'installe depuis l'URL GitHub du v1.**
    Un `pip install git+…/basicfoncier` cesserait de fonctionner sans message utile.
-2. **Archiver le v1 avant de le supprimer.** Une suppression GitHub est définitive, et le
-   v1 est la référence de `MIGRATION.md` et de la section « défauts hérités » de `BUGS.md`,
-   qui citent son code. Au minimum : un clone complet conservé hors GitHub.
-3. **Supprimer le v1, puis renommer ce dépôt.** GitHub refuse le nom tant que l'autre existe.
-4. **Mettre à jour le publieur de confiance PyPI** — il nomme le dépôt. Sans cette étape,
+3. **Archiver le v1 avant de le supprimer.** Une suppression GitHub est définitive. Au
+   minimum : un clone complet conservé hors GitHub.
+4. **Supprimer le v1, puis renommer ce dépôt.** GitHub refuse le nom tant que l'autre existe.
+5. **Mettre à jour le publieur de confiance PyPI** — il nomme le dépôt. Sans cette étape,
    la publication de la 1.1.0 échouera à l'authentification, et le message d'erreur ne dira
    pas pourquoi.
-5. Mettre à jour les URL de `pyproject.toml`, du `README` et de `MIGRATION.md`.
-
-**Point à décider au passage :** `MIGRATION.md` et `BUGS.md` renvoient au code du v1 pour
-étayer les défauts hérités. Le dépôt disparu, faut-il recopier les extraits concernés dans
-la documentation, ou assumer que ces renvois deviennent des références historiques sans
-source consultable ? Recommandation : recopier les trois extraits fautifs, courts, au
-moment de la suppression — c'est le seul moment où ils sont encore accessibles.
+6. **Ramener les trois URL de `pyproject.toml` sur `basicfoncier`.** Elles pointent
+   aujourd'hui sur `basicfoncierv2` — voir ci-dessous. GitHub redirige après un renommage,
+   donc rien ne casse dans l'intervalle ; c'est une question de justesse, pas de panne.
 
 ---
 
@@ -95,6 +95,28 @@ sans le chiffre, et renvoyer aux mesures de `DECISIONS.md`. **Ce qui déciderait
 utilisateur extérieur — issue, question, téléchargement suivi d'un rapport — qui montre
 qu'il a choisi ou écarté le paquet sur une question de débit.
 
+### Deux points du socle EF que je ne peux pas trancher moi-même
+
+Le bloc « Socle EF » de `CLAUDE.md` est marqué non modifiable localement. Deux frottements
+s'y répètent d'une tâche à l'autre, relevés par les revues :
+
+1. **`docs/` n'est pas un préfixe de branche autorisé.** §10.1 admet `feat/`, `fix/`,
+   `chore/`, `refac/` ; §10.2 admet pourtant `docs` comme type de commit. Une branche
+   `docs/…` a déjà été fusionnée, celle-ci est la deuxième, et une branche `perf/` —
+   également hors liste — a été fusionnée elle aussi. *Recommandation :* ajouter `docs/`
+   à §10.1, dans le socle partagé et non ici ; trancher `perf/` en même temps. La règle
+   de longueur du même §10.1, elle, ne pose pas de problème : sur dix-sept branches, une
+   seule a dépassé quatre mots.
+2. **La longueur des entrées de `JOURNAL.md`.** §9 dit « une à trois puces » et « cinq
+   lignes suffisent » ; toutes les entrées de ce dépôt, les miennes comprises, en font
+   trois à quatre fois plus. Soit la règle vaut et je m'y tiens — au prix de renvoyer le
+   détail vers `DECISIONS`, `BUGS` et ce fichier — soit elle est à assouplir dans le socle.
+   *Recommandation :* m'y tenir, et n'écrire dans le `JOURNAL` que ce qui sert à
+   **reprendre le travail**, jamais ce qui sert à le justifier.
+
+**Ce qui déciderait :** un passage sur le socle EF partagé, qui vaut pour tous les projets
+et pas seulement celui-ci.
+
 ### Jusqu'où faire remonter le contrat d'appel dans `_internal/appel.py` ?
 
 La repasse d'architecture unifie ce qui est manifestement dupliqué. Reste une zone grise :
@@ -117,6 +139,16 @@ l'arrivée d'une quatrième famille.
 - **Les plages entrent dans la 1.1.0 avec le dictionnaire, pas après.** La sonde qui
   choisit doit exister de toute façon ; livrer le dictionnaire seul laisserait de côté le
   x10,0, qui est précisément le cas des lots de parcelles mitoyennes.
+- **Les URL de `pyproject.toml` passent sur `basicfoncierv2` maintenant, et non au
+  renommage.** Elles désignaient le dépôt du **prédécesseur** : le lien `Changelog` était
+  un 404 — le v1 n'a pas de `CHANGELOG.md` — et une issue ouverte depuis PyPI atterrissait
+  sur l'autre paquet. Attendre le renommage aurait laissé une 1.1.0 se publier avec des
+  liens faux si ce renommage tardait. Le corriger deux fois coûte moins cher que le
+  publier une fois de travers.
+  **Élargissement de périmètre assumé :** le socle (§11) dit de noter un problème hors
+  sujet plutôt que de le corriger. Ici le problème était déjà noté comme chantier, il
+  touche du texte **publié**, et le correctif tient en trois lignes. J'ai tranché de le
+  faire ; à contredire si la règle doit primer sur le cas d'espèce.
 - **`superficie._refuser_non_nombre` reste une exception à l'unification.** Une superficie
   est un nombre et non une chaîne : il faut y exclure `bool` tout en acceptant les
   scalaires numpy. C'est une asymétrie de domaine, pas une dérive. Devenu

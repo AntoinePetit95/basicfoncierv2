@@ -1,14 +1,25 @@
 # Journal
 
+## 2026-08-13 — Préserver le code du v1 avant que son dépôt disparaisse
+
+**Demande :** avancer seul sur les chantiers ouverts ; celui-ci d'abord, seul à avoir une contrainte de temps.
+**Fait :**
+- Les trois extraits du v1 que `BUGS.md` cite y sont recopiés, avec chemin, lignes et commit : sans eux ces constats deviendraient invérifiables à la suppression du dépôt.
+- Trois textes **publiés** rendus faux par cette suppression corrigés : la disponibilité du v1 (`README`, `MIGRATION.md`), le conseil d'épinglage qui pointait une version absente de PyPI, les URL de `pyproject.toml`.
+
+**Fichiers :** `docs/{BUGS,MIGRATION,CHANTIERS,JOURNAL}.md`, `README.md`, `pyproject.toml`
+**Vérifié par :** `pytest` → 636 passed ; `ruff` propre ; comportements du v1 relevés **par exécution**, extraits recomparés octet à octet par la revue.
+**À savoir :** le défaut d'ordre du tuple est le cas normal, pas un cas limite — seule l'Alsace-Moselle en réchappe.
+
 ## 2026-08-13 — Un seul chemin d'appel pour les trois familles
 
 **Demande :** repasser sur tout le code et voir si l'architecture gagnerait à être simplifiée.
 **Fait :**
 - Quatre formes qui étaient recopiées d'un module à l'autre remontent dans `_internal/appel.py` : la répartition valeur seule / colonne (**8 copies**), le patron de message d'erreur (**5 copies**), l'assemblage d'un `DataFrame` à plusieurs champs (2 copies mot pour mot) et le contrôle d'alignement des index (2 copies).
-- `tests/test_contrat_appel.py` : le contrat éprouvé sur les **douze** fonctions publiques d'un coup, et le texte des cinq messages métier éprouvé au caractère près. 639 tests au total, contre 488.
+- `tests/test_contrat_appel.py` : le contrat éprouvé sur les **douze** fonctions publiques d'un coup, et le texte des cinq messages métier éprouvé au caractère près. 636 tests au total, contre 488.
 
 **Fichiers :** `basicfoncier/{commune,ref_cadastrale,superficie}.py`, `basicfoncier/_internal/appel.py`, `tests/test_contrat_appel.py`, `CHANGELOG.md`, `docs/CHANTIERS.md`
-**Vérifié par :** `pytest` → 639 passed, **les 488 tests existants inchangés** ; `ruff` propre ; la revue a comparé **301 scénarios** exécutés contre l'ancien code et le nouveau — sortie identique octet pour octet ; non-régression de débit établie structurellement, `git diff` ne touchant aucun noyau Arrow.
+**Vérifié par :** `pytest` → 636 passed, **les 488 tests existants inchangés** ; `ruff` propre ; la revue a comparé **301 scénarios** exécutés contre l'ancien code et le nouveau — sortie identique octet pour octet ; non-régression de débit établie structurellement, `git diff` ne touchant aucun noyau Arrow.
 **À savoir :**
 - **Ma justification de non-régression des messages était fausse.** J'avais écrit que « les tests existants, qui les inspectent, passent inchangés » : ils ne les inspectent pas. La revue l'a montré en supprimant purement et simplement la clause « Attendu » du patron — 629 tests verts. La conclusion était juste, la preuve avancée ne valait rien. Cinq mutations sont désormais posées et quatre sont détectées ; la cinquième est un mutant équivalent, expliqué dans le fichier de test.
 - Deux points du plan ont fondu à la lecture du code — `_CONSEIL_TEXTE` n'est pas dupliqué, `arrow_commun.py` est bien partagé. Consigné dans `CHANTIERS.md` plutôt que corrigé par du remaniement cosmétique.
