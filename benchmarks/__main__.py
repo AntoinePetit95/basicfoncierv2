@@ -1,6 +1,6 @@
 """Compare le débit de ce paquet à celui de `basicfoncier` 0.1, son prédécesseur.
 
-Usage : ``python -m benchmarks [--lignes N] [--v1 CHEMIN]``
+Usage : ``python -m benchmarks [--lignes N] [--v1 CHEMIN] [--tours N]``
 
 Le v1 n'est pas une dépendance : il est importé depuis son dépôt voisin, en lecture
 seule, et la mesure se contente du v2 s'il est introuvable. Les deux portant le même
@@ -26,8 +26,9 @@ from basicfoncier.ref_cadastrale import to_idu, to_parts, to_short_id
 from basicfoncier.superficie import from_ha_a_ca, to_ha_a_ca, to_hectares
 from benchmarks.mesure import (
     REPETITIONS,
+    Encadrement,
     Mesure,
-    est_concluant,
+    encadrer,
     mesurer_ensemble,
     rapports_par_tour,
     resumer,
@@ -40,9 +41,6 @@ CHEMIN_V1_PAR_DEFAUT = Path(__file__).resolve().parents[2] / "basicfoncier"
 ALIAS_V1 = "basicfoncier_v1"
 LIGNES_PAR_DEFAUT = 1_000_000
 DEPARTEMENTS_ALSACE_MOSELLE = ("57", "67", "68")
-
-#: Nom donné à la variante lorsqu'elle est mesurée seule, faute de v1 à lui opposer.
-SEULE = "seule"
 
 # Distribution des contenances cadastrales, ajustée sur 837 531 parcelles réelles
 # (fichiers des parcelles DGFiP, situation 2025, quatre départements).
@@ -171,22 +169,20 @@ def _refuser_nombre_nul(nombre: int) -> None:
 
 
 def rapporter(nom: str, lignes: int, mesure: Mesure) -> None:
-    """Affiche une ligne de résultat : durée médiane, débit, et précision de la mesure."""
+    """Affiche une ligne de résultat : durée médiane, débit, et étendue des tours."""
     debit = lignes / mesure.mediane
     print(
         f"  {nom:<34} {mesure.mediane:8.3f} s   {debit:14,.0f} lignes/s"
-        f"   ±{mesure.dispersion:3.0%}".replace(",", " ")
+        f"   étendue {mesure.etendue:5.0%}".replace(",", " ")
     )
 
 
-def conclure(rapports: Mesure) -> str:
-    """Formule le rapport v2 / v1, ou dit qu'il n'y a pas de rapport à annoncer."""
-    if not est_concluant(rapports):
-        return (
-            f"rapport v2 / v1 : non concluant — les tours donnent x{rapports.minimum:.1f} "
-            f"à x{rapports.maximum:.1f}, l'ordre s'inverse"
-        )
-    return f"rapport v2 / v1 : x{rapports.mediane:.1f}   (±{rapports.dispersion:.0%})"
+def conclure(encadrement: Encadrement) -> str:
+    """Formule le gain du v2 sur le v1, ou dit qu'il n'y a rien à annoncer."""
+    bornes = f"x{encadrement.borne_basse:.2f} à x{encadrement.borne_haute:.2f}"
+    if not encadrement.concluant:
+        return f"gain v2 / v1 : non concluant — l'intervalle {bornes} contient 1"
+    return f"gain v2 / v1 : x{encadrement.gain:.1f}   ({bornes} à 95 %)"
 
 
 def comparer(
@@ -194,18 +190,22 @@ def comparer(
     lignes: int,
     operation_v2: Callable[[], object],
     operation_v1: Callable[[], object] | None,
+    tours: int = REPETITIONS,
 ) -> None:
     """Mesure une opération du v2 et son équivalent v1 entrelacés, puis les compare."""
     if operation_v1 is None:
-        durees = mesurer_ensemble({SEULE: operation_v2})
-        rapporter(f"v2  {intitule}", lignes, resumer(durees[SEULE]))
+        durees = mesurer_ensemble({"v2": operation_v2}, tours)
+        rapporter(f"v2  {intitule}", lignes, resumer(durees["v2"]))
         return
 
-    durees = mesurer_ensemble({"v2": operation_v2, "v1": operation_v1})
+    durees = mesurer_ensemble({"v2": operation_v2, "v1": operation_v1}, tours)
     rapporter(f"v2  {intitule}", lignes, resumer(durees["v2"]))
     rapporter(f"v1  {intitule}", lignes, resumer(durees["v1"]))
-    rapports = resumer(rapports_par_tour(durees["v1"], durees["v2"]))
-    print(f"      {conclure(rapports)}\n")
+    # Le v1 est la référence, donc au numérateur : le gain se lit « le v2 va x fois plus
+    # vite que le v1 ». Inverser ces deux arguments inverserait chaque gain publié — c'est
+    # ce que vérifie `TestSensDuGain`.
+    rapports = rapports_par_tour(durees_reference=durees["v1"], durees_candidate=durees["v2"])
+    print(f"      {conclure(encadrer(rapports))}\n")
 
 
 # --------------------------------------------------------------------------------------
@@ -271,7 +271,7 @@ def charger_v1(chemin: Path) -> SimpleNamespace | None:
 # --------------------------------------------------------------------------------------
 
 
-def mesurer_references(lignes: int, v1: SimpleNamespace | None) -> None:
+def mesurer_references(lignes: int, v1: SimpleNamespace | None, tours: int) -> None:
     """Compare les conversions de référence cadastrale."""
     refs = generer_references(lignes)
     brutes = refs.to_numpy(dtype=object)
@@ -282,16 +282,17 @@ def mesurer_references(lignes: int, v1: SimpleNamespace | None) -> None:
         lignes,
         lambda: to_parts(refs),
         None if v1 is None else lambda: v1.vectorisees.ref_parcelle_to_parts(brutes),
+        tours,
     )
-    comparer("forme idu", lignes, lambda: to_idu(refs), None)
-    comparer("identifiant court", lignes, lambda: to_short_id(refs), None)
+    comparer("forme idu", lignes, lambda: to_idu(refs), None, tours)
+    comparer("identifiant court", lignes, lambda: to_short_id(refs), None, tours)
     print(
         "      les équivalents v1 renvoient une valeur fausse ou lèvent une exception\n"
         "      (docs/BUGS.md) : les comparer n'aurait pas de sens.\n"
     )
 
 
-def mesurer_superficies(lignes: int, v1: SimpleNamespace | None) -> None:
+def mesurer_superficies(lignes: int, v1: SimpleNamespace | None, tours: int) -> None:
     """Compare les conversions de superficie."""
     metres_carres = generer_superficies(lignes)
     brutes = metres_carres.to_numpy(dtype=object)
@@ -304,22 +305,25 @@ def mesurer_superficies(lignes: int, v1: SimpleNamespace | None) -> None:
         lignes,
         lambda: to_ha_a_ca(metres_carres),
         None if v1 is None else lambda: v1.vectorisees.superficie_ha_a_ca(brutes),
+        tours,
     )
     comparer(
         "lecture ha a ca",
         lignes,
         lambda: from_ha_a_ca(ecrites),
         None if v1 is None else lambda: v1.vectorisees.superficie_from_str(ecrites_brutes),
+        tours,
     )
     comparer(
         "hectares",
         lignes,
         lambda: to_hectares(metres_carres),
         None if v1 is None else lambda: v1.vectorisees.superficie_ha(brutes),
+        tours,
     )
 
 
-def mesurer_communes(lignes: int, v1: SimpleNamespace | None) -> None:
+def mesurer_communes(lignes: int, v1: SimpleNamespace | None, tours: int) -> None:
     """Compare les conversions de code Insee de commune."""
     codes = generer_codes_insee(lignes)
     brutes = codes.to_numpy(dtype=object)
@@ -330,42 +334,46 @@ def mesurer_communes(lignes: int, v1: SimpleNamespace | None) -> None:
         lignes,
         lambda: to_departement(codes),
         None if v1 is None else lambda: v1.departement(brutes),
+        tours,
     )
     comparer(
         "code commune",
         lignes,
         lambda: to_code_commune(codes),
         None if v1 is None else lambda: v1.code_commune(brutes),
+        tours,
     )
     comparer(
         "commune et arrondissement",
         lignes,
         lambda: to_commune_et_arrondissement(codes),
         None if v1 is None else lambda: v1.arrondissement(brutes),
+        tours,
     )
 
 
-def executer(lignes: int, chemin_v1: Path) -> None:
+def executer(lignes: int, chemin_v1: Path, tours: int) -> None:
     """Lance toutes les mesures et affiche le rapport."""
     nombre = f"{lignes:,}".replace(",", " ")
-    print(f"{nombre} lignes, médiane de {REPETITIONS} tours entrelacés ; ± est l'étendue\n")
+    print(f"{nombre} lignes, {tours} tours entrelacés, gain encadré à 95 %\n")
 
     v1 = charger_v1(chemin_v1)
     if v1 is None:
         print(f"basicfoncier v1 introuvable dans {chemin_v1} : comparaison ignorée.\n")
 
-    mesurer_references(lignes, v1)
-    mesurer_superficies(lignes, v1)
-    mesurer_communes(lignes, v1)
+    mesurer_references(lignes, v1, tours)
+    mesurer_superficies(lignes, v1, tours)
+    mesurer_communes(lignes, v1, tours)
 
 
 def analyser_arguments() -> argparse.Namespace:
     analyseur = argparse.ArgumentParser(description=__doc__)
     analyseur.add_argument("--lignes", type=int, default=LIGNES_PAR_DEFAUT)
     analyseur.add_argument("--v1", type=Path, default=CHEMIN_V1_PAR_DEFAUT)
+    analyseur.add_argument("--tours", type=int, default=REPETITIONS)
     return analyseur.parse_args()
 
 
 if __name__ == "__main__":
     arguments = analyser_arguments()
-    executer(arguments.lignes, arguments.v1)
+    executer(arguments.lignes, arguments.v1, arguments.tours)

@@ -1,5 +1,30 @@
 # Décisions
 
+## 2026-08-13 — Le banc d'essai encadre ses gains, et refuse ceux qu'il ne soutient pas
+
+**Contexte :** `benchmarks/` est le critère de succès de toute tâche de vitesse. Il mesurait chaque variante en entier, l'une après l'autre : le rapport publié mêlait l'écart entre les implémentations à la dérive de la machine entre deux moments. Le 2026-08-13, deux exécutions séparées ont ainsi annoncé +52 % là où il n'y avait rien.
+
+**Retenu :** les variantes sont chronométrées **à tour de rôle dans une même boucle**, après un tour de chauffe non compté ; le gain est calculé **tour par tour**, puis encadré à 95 % par un intervalle de Student sur les logarithmes des rapports. Il n'est annoncé que si cet intervalle exclut 1.
+
+**Pourquoi tour par tour :** l'appariement retire la part commune du bruit. Sur six tours réels, l'étendue passe de 133 % et 251 % sur les durées à 78 % sur leur rapport. Elle ne tombe pas à zéro : les à-coups ne frappent pas les deux variantes également — au tour 3, le v1 encaisse 1,2x et le v2 2,5x.
+
+**Pourquoi un intervalle, et non l'étendue observée.** Mon premier critère disait « concluant si tous les tours désignent le même gagnant ». C'est un test des signes, et il a exactement les propriétés qu'il ne faut pas. Mesuré sur 20 000 tirages, gain vrai de 5 %, bruit de 4 % :
+
+| Tours | Test des signes | Intervalle à 95 % |
+|---|---|---|
+| 3 | 70 % | 23 % |
+| 5 | 55 % | 55 % |
+| 10 | **31 %** | 96 % |
+| 20 | **9 %** | 100 % |
+
+Le test des signes devient **moins** capable à mesure qu'on mesure plus longtemps : le réflexe normal — « c'est bruité, augmentons le nombre de tours » — le détruisait. Son taux de fausse alerte vaut 2/2ⁿ, soit 6,2 % par comparaison à cinq tours ; sur sept comparaisons, une exécution sur trois annonçait un gain inexistant. Vérifié sur du vrai code, une opération comparée à elle-même : 2 fausses alertes sur 40. L'intervalle, lui, tient ses 5 % quel que soit le nombre de tours.
+
+**Ce que le banc d'essai sait détecter, et ce qu'il ne sait pas.** À cinq tours il reconnaît un gain franc — 96 % sur un x2 avec 30 % de bruit — mais **pas** un écart de quelques pour-cent : avec le bruit de cette machine, un gain réel de 5 % n'est reconnu qu'une fois sur six. C'est à cela que sert `--tours`, l'intervalle se resserrant en racine du nombre de tours. Le seuil de 5 % demandé au chantier est donc atteignable, à une vingtaine de tours, et non au réglage par défaut.
+
+**Écarté :** comparer les médianes de chaque variante, comme le prévoyait le plan — l'étendue des durées atteint 374 % là où celle du rapport reste sous 40 %, si bien qu'un critère fondé sur les durées refuserait presque tout. Écarté aussi : une dépendance à scipy pour vingt quantiles.
+
+**Conséquence sur ce fichier :** tout chiffre de débit antérieur à cette date sort de l'ancien banc d'essai. Les gains d'un ordre de grandeur restent valides — aucun bruit ne fabrique un x10. Les écarts proches de 1, eux, ne sont plus soutenus par leur mesure ; les entrées concernées portent désormais un avertissement.
+
 ## 2026-08-12 — Calculer sur les valeurs distinctes, et non sur les lignes
 
 **Contexte :** une colonne foncière porte très peu de valeurs différentes. Sur un million de parcelles DGFiP réelles prises au hasard, les codes Insee ne prennent que **2 811 valeurs distinctes** — chacune est donc traitée 356 fois pour un résultat identique. Mieux : les parcelles d'un lot sont mitoyennes, si bien que dans l'ordre du fichier ces valeurs ne sont pas seulement répétées, elles sont **contiguës** : **1 792 plages** pour un million de lignes, soit 558 parcelles consécutives par plage.
@@ -62,6 +87,8 @@ Aucune des deux techniques n'est donc applicable sans garde. C'est la garde, et 
 **Vérifié :** résultats identiques à l'ancienne implémentation sur les 30 001 valeurs de 0 à 30 000, sur les bornes exactes des trois formes, sur les valeurs nulles, sur une colonne vide, sur des colonnes d'une seule forme, et sur 200 000 contenances réelles.
 
 **Écarté :** supprimer les conversions en texte redondantes — l'hypothèse paraissait solide, la mesure donne **x1,0**, aucun gain. Consigné parce que je l'aurais volontiers affirmée sans mesurer.
+
+> ⚠️ Ce x1,0 vient de l'ancien banc d'essai, incapable de distinguer un petit écart du bruit (décision du 2026-08-13). Il ne prouve pas l'absence de gain, seulement l'absence de gain **visible à cette précision**. La piste est écartée faute de preuve, non réfutée ; à rouvrir avec `--tours 20` si elle redevient intéressante.
 
 ## 2026-08-09 — Arrondissements municipaux : conversion asymétrique, assumée
 

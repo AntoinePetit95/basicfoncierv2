@@ -159,13 +159,5 @@ l'arrivée d'une quatrième famille.
   structurellement — aucun noyau Arrow n'est modifié, le travail par ligne est identique
   au bit près — et non par le chronomètre. Rendre le banc d'essai capable de détecter
   5 % demanderait de le refondre en comparaisons entrelacées, ce qui est un chantier en
-  soi. **Fait le 2026-08-13** : le banc d'essai apparie désormais les tours, et un écart
-  de 5 % est détectable s'il est stable — voir la décision ci-dessous.
-- **Le banc d'essai compare des rapports par tour, et non des durées agrégées.** Le plan
-  prévoyait de comparer les médianes de chaque variante. Mesuré, ce n'était pas
-  suffisant : les perturbations frappent les **deux** variantes du même tour — un
-  ralentissement d'un facteur quatre relevé sur six tours — si bien que l'étendue des
-  durées atteint ±150 % alors que le rapport, lui, ne bouge pas. Diviser tour par tour
-  rend le gain lisible malgré ces à-coups, et le critère devient net : si les rapports
-  encadrent 1, l'ordre s'inverse et il n'y a rien à conclure. Un tour de chauffe non
-  compté a dû être ajouté par la même occasion — sans lui, l'étendue montait à ±3 000 %.
+  soi. **Fait le 2026-08-13** — voir `DECISIONS.md`. Le seuil de 5 % est désormais
+  atteignable, mais pas au réglage par défaut : il demande une vingtaine de tours.
