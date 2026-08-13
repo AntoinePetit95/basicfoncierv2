@@ -13,6 +13,11 @@ versionnage [SemVer](https://semver.org/lang/fr/).
 
 ### Interne
 
+- Chemin d'appel unifié : la répartition valeur seule / colonne, le patron de message
+  d'erreur, l'assemblage d'un `DataFrame` et le contrôle d'alignement des index n'existent
+  plus qu'en un exemplaire, dans `_internal/appel.py`. **Aucun changement de
+  comportement** — messages d'erreur identiques au caractère près, vérifiés sur
+  301 scénarios face à la version précédente.
 - Le générateur du banc d'essai suit désormais la distribution cadastrale réelle, ajustée
   sur 837 531 contenances de la DGFiP. Il tirait jusqu'ici une loi uniforme, qui produit
   99,5 % de parcelles d'au moins un hectare contre 21,4 % dans la réalité. Corse et

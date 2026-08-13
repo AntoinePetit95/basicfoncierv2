@@ -14,14 +14,15 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from ._internal.appel import (
-    NOMBRE_EXEMPLES,
+    NOMBRE_OU_COLONNE,
+    VALEUR_SEULE,
     SurInvalide,
+    aiguiller,
     en_colonne_arrow,
     en_serie,
-    erreur_de_type,
-    exemples_fautifs,
     refuser_colonne_non_numerique,
     refuser_colonne_non_textuelle,
+    signaler_valeurs_fautives,
     valider_option_invalide,
 )
 from ._internal.superficie_arrow import (
@@ -69,14 +70,13 @@ def to_hectares(
     """
     valider_option_invalide(invalide)
 
-    if isinstance(superficie, pd.Series):
-        metres_carres = _metres_carres_depuis_colonne(superficie, invalide)
-        hectares = pc.divide(pc.cast(metres_carres, pa.float64()), float(METRES_CARRES_PAR_HECTARE))
-        return en_serie(hectares, superficie.index)
-    _refuser_non_nombre(superficie)
+    if aiguiller(superficie, NOMBRE_OU_COLONNE, _est_nombre) == VALEUR_SEULE:
+        metres_carres = _metres_carres_depuis_nombre(superficie, invalide)
+        return pd.NA if pd.isna(metres_carres) else metres_carres / METRES_CARRES_PAR_HECTARE
 
-    metres_carres = _metres_carres_depuis_nombre(superficie, invalide)
-    return pd.NA if pd.isna(metres_carres) else metres_carres / METRES_CARRES_PAR_HECTARE
+    metres_carres = _metres_carres_depuis_colonne(superficie, invalide)
+    hectares = pc.divide(pc.cast(metres_carres, pa.float64()), float(METRES_CARRES_PAR_HECTARE))
+    return en_serie(hectares, superficie.index)
 
 
 def to_ha_a_ca(
@@ -95,13 +95,12 @@ def to_ha_a_ca(
     """
     valider_option_invalide(invalide)
 
-    if isinstance(superficie, pd.Series):
-        metres_carres = _metres_carres_depuis_colonne(superficie, invalide)
-        return en_serie(formater(metres_carres), superficie.index)
-    _refuser_non_nombre(superficie)
+    if aiguiller(superficie, NOMBRE_OU_COLONNE, _est_nombre) == VALEUR_SEULE:
+        metres_carres = _metres_carres_depuis_nombre(superficie, invalide)
+        return pd.NA if pd.isna(metres_carres) else _formater_nombre(metres_carres)
 
-    metres_carres = _metres_carres_depuis_nombre(superficie, invalide)
-    return pd.NA if pd.isna(metres_carres) else _formater_nombre(metres_carres)
+    metres_carres = _metres_carres_depuis_colonne(superficie, invalide)
+    return en_serie(formater(metres_carres), superficie.index)
 
 
 def from_ha_a_ca(
@@ -121,11 +120,10 @@ def from_ha_a_ca(
     """
     valider_option_invalide(invalide)
 
-    if isinstance(superficie, str):
+    if aiguiller(superficie) == VALEUR_SEULE:
         return _lire_texte(superficie, invalide)
-    if isinstance(superficie, pd.Series):
-        return en_serie(_lire_colonne(superficie, invalide), superficie.index)
-    raise erreur_de_type(superficie, "une chaîne ou une pandas.Series")
+
+    return en_serie(_lire_colonne(superficie, invalide), superficie.index)
 
 
 # --------------------------------------------------------------------------------------
@@ -133,15 +131,17 @@ def from_ha_a_ca(
 # --------------------------------------------------------------------------------------
 
 
-def _refuser_non_nombre(superficie: object) -> None:
-    """Rejette ce qui n'est pas une superficie mesurable.
+def _est_nombre(superficie: object) -> bool:
+    """Dit si une valeur seule mesure une superficie.
 
     ``numbers.Real`` plutôt que ``int | float`` : une valeur tirée d'un tableau numpy est
     un ``numpy.int64``, qui n'hérite ni de l'un ni de l'autre mais mesure tout aussi bien.
     Les booléens en sont exclus explicitement — ``True`` vaut 1 pour Python, jamais un m².
+
+    C'est la seule famille dont la valeur seule n'est pas du texte : les deux autres se
+    contentent du prédicat par défaut de :func:`~basicfoncier._internal.appel.est_scalaire`.
     """
-    if isinstance(superficie, bool) or not isinstance(superficie, numbers.Real):
-        raise erreur_de_type(superficie, "un nombre ou une pandas.Series")
+    return not isinstance(superficie, bool) and isinstance(superficie, numbers.Real)
 
 
 def _metres_carres_depuis_nombre(superficie: float | int, invalide: SurInvalide) -> int:
@@ -209,7 +209,14 @@ def _metres_carres_depuis_colonne(superficies: pd.Series, invalide: SurInvalide)
         return metres_carres
 
     if invalide == "erreur":
-        _signaler_colonne_negative(superficies, negatives)
+        # Sans rappel de format : une superficie négative est fautive par son signe et
+        # non par sa forme, et lui opposer le format attendu n'apprendrait rien.
+        signaler_valeurs_fautives(
+            SuperficieInvalide,
+            superficies,
+            negatives,
+            sujet="superficie(s) négative(s)",
+        )
 
     return pc.if_else(negatives, pa.scalar(None, type=pa.int64()), metres_carres)
 
@@ -223,36 +230,12 @@ def _lire_colonne(superficies: pd.Series, invalide: SurInvalide) -> pa.Array:
     illisibles = positions_illisibles(textes, metres_carres)
 
     if invalide == "erreur" and pc.any(illisibles).as_py():
-        _signaler_colonne_illisible(superficies, illisibles)
+        signaler_valeurs_fautives(
+            SuperficieInvalide,
+            superficies,
+            illisibles,
+            sujet="superficie(s) illisible(s)",
+            format_attendu=FORMAT_ATTENDU,
+        )
 
     return metres_carres
-
-
-# --------------------------------------------------------------------------------------
-# Messages
-# --------------------------------------------------------------------------------------
-
-
-def _signaler_colonne_negative(superficies: pd.Series, negatives: pa.Array) -> None:
-    """Lève une erreur nommant les superficies négatives et leur position."""
-    fautives = exemples_fautifs(superficies, negatives)
-    exemples = fautives.head(NOMBRE_EXEMPLES)
-
-    raise SuperficieInvalide(
-        f"{len(fautives)} superficie(s) négative(s) sur {len(superficies)}. "
-        f"Reçu, aux positions {list(exemples.index)} : {list(exemples)}. "
-        "Passez invalide='manquant' pour les remplacer par des valeurs manquantes."
-    )
-
-
-def _signaler_colonne_illisible(superficies: pd.Series, illisibles: pa.Array) -> None:
-    """Lève une erreur nommant les superficies illisibles et leur position."""
-    fautives = exemples_fautifs(superficies, illisibles)
-    exemples = fautives.head(NOMBRE_EXEMPLES)
-
-    raise SuperficieInvalide(
-        f"{len(fautives)} superficie(s) illisible(s) sur {len(superficies)}. "
-        f"Attendu : {FORMAT_ATTENDU}. "
-        f"Reçu, aux positions {list(exemples.index)} : {list(exemples)}. "
-        "Passez invalide='manquant' pour les remplacer par des valeurs manquantes."
-    )

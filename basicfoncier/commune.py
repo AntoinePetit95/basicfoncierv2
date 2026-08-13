@@ -14,13 +14,16 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from ._internal.appel import (
-    NOMBRE_EXEMPLES,
+    VALEUR_SEULE,
     SurInvalide,
+    aiguiller,
     en_colonne_arrow,
+    en_dataframe,
     en_serie,
-    erreur_de_type,
-    exemples_fautifs,
+    exiger_meme_index,
     refuser_colonne_non_textuelle,
+    signaler_valeurs_fautives,
+    sont_des_textes,
     valider_option_invalide,
 )
 from ._internal.commune_arrow import (
@@ -56,6 +59,12 @@ _DEPARTEMENT_COMPILE = re.compile(MOTIF_DEPARTEMENT)
 _CONSEIL_TEXTE = (
     "Un code Insee stocké en numérique a perdu ses zéros de tête — le 01 de l'Ain "
     "devient 1 : convertissez la colonne à la lecture du fichier."
+)
+
+#: La règle que la recomposition impose à ses deux arguments.
+_EXIGENCE_MEME_NATURE = (
+    "le département et le code commune doivent être tous deux des chaînes, ou "
+    "tous deux des pandas.Series."
 )
 
 
@@ -123,16 +132,12 @@ def to_commune_et_arrondissement(
     """
     valider_option_invalide(invalide)
 
-    if isinstance(insee, str):
+    if aiguiller(insee) == VALEUR_SEULE:
         valide = _valider_texte(insee, invalide)
         return (pd.NA, pd.NA) if pd.isna(valide) else _separer_texte(valide)
-    if isinstance(insee, pd.Series):
-        colonnes = separer_arrondissement(_valider_colonne(insee, invalide))
-        table = pa.table({champ: colonnes[champ] for champ in CHAMPS_ARRONDISSEMENT})
-        parts = table.to_pandas(types_mapper=pd.ArrowDtype)
-        parts.index = insee.index
-        return parts
-    raise erreur_de_type(insee, "une chaîne ou une pandas.Series")
+
+    colonnes = separer_arrondissement(_valider_colonne(insee, invalide))
+    return en_dataframe(colonnes, CHAMPS_ARRONDISSEMENT, insee.index)
 
 
 def insee_from_parts(
@@ -158,17 +163,11 @@ def insee_from_parts(
 
     :raises CodeInseeInvalide: les deux codes ne forment pas un code Insee valide
     """
-    if isinstance(departement, str) and isinstance(code_commune, str):
+    parties = {"departement": departement, "code_commune": code_commune}
+    if sont_des_textes(parties, _EXIGENCE_MEME_NATURE):
         return _valider_texte(_recomposer_texte(departement, code_commune), "erreur")
 
-    if isinstance(departement, pd.Series) and isinstance(code_commune, pd.Series):
-        return _recomposer_colonnes(departement, code_commune)
-
-    raise TypeError(
-        "le département et le code commune doivent être tous deux des chaînes, ou "
-        f"tous deux des pandas.Series. Reçu : departement={type(departement).__name__}, "
-        f"code_commune={type(code_commune).__name__}."
-    )
+    return _recomposer_colonnes(departement, code_commune)
 
 
 # --------------------------------------------------------------------------------------
@@ -185,12 +184,11 @@ def _appliquer(
     """Aiguille vers le chemin scalaire ou le chemin colonne, après validation."""
     valider_option_invalide(invalide)
 
-    if isinstance(insee, str):
+    if aiguiller(insee) == VALEUR_SEULE:
         valide = _valider_texte(insee, invalide)
         return pd.NA if pd.isna(valide) else sur_texte(valide)
-    if isinstance(insee, pd.Series):
-        return en_serie(sur_colonne(_valider_colonne(insee, invalide)), insee.index)
-    raise erreur_de_type(insee, "une chaîne ou une pandas.Series")
+
+    return en_serie(sur_colonne(_valider_colonne(insee, invalide)), insee.index)
 
 
 # --------------------------------------------------------------------------------------
@@ -271,17 +269,25 @@ def _recomposer_colonnes(departement: pd.Series, code_commune: pd.Series) -> pd.
     refuser_colonne_non_textuelle(departement, "la colonne de départements", _CONSEIL_TEXTE)
     refuser_colonne_non_textuelle(code_commune, "la colonne de codes commune", _CONSEIL_TEXTE)
 
-    if not code_commune.index.equals(departement.index):
-        raise ValueError(
-            "la colonne de codes commune n'est pas alignée sur celle des départements : "
-            f"{len(code_commune)} valeurs contre {len(departement)}, index différents. "
-            "Réindexez les colonnes avant de les recomposer."
-        )
+    exiger_meme_index(
+        code_commune,
+        departement.index,
+        designation="la colonne de codes commune",
+        reference="celle des départements",
+        action="recomposer",
+    )
 
     codes_departements = en_colonne_arrow(departement, pa.string())
     fautifs = positions_departements_invalides(codes_departements)
     if pc.any(fautifs).as_py():
-        _signaler_departement_invalide(departement, fautifs)
+        signaler_valeurs_fautives(
+            CodeInseeInvalide,
+            departement,
+            fautifs,
+            sujet="code(s) département invalide(s)",
+            format_attendu=FORMAT_DEPARTEMENT_ATTENDU,
+            tolerance_possible=False,
+        )
 
     recomposes = recomposer(
         codes_departements,
@@ -314,28 +320,11 @@ def _signaler_colonne_invalide(
     :param tolerance_possible: faux quand la fonction appelante n'offre pas d'option
         ``invalide`` — conseiller de la passer enverrait alors l'appelant dans le mur
     """
-    fautifs = exemples_fautifs(insee, invalides)
-    exemples = fautifs.head(NOMBRE_EXEMPLES)
-    conseil = (
-        " Passez invalide='manquant' pour les remplacer par des valeurs manquantes."
-        if tolerance_possible
-        else ""
-    )
-
-    raise CodeInseeInvalide(
-        f"{len(fautifs)} code(s) Insee invalide(s) sur {len(insee)}. "
-        f"Attendu : {FORMAT_ATTENDU}. "
-        f"Reçu, aux positions {list(exemples.index)} : {list(exemples)}.{conseil}"
-    )
-
-
-def _signaler_departement_invalide(departement: pd.Series, invalides: pa.Array) -> None:
-    """Lève une erreur nommant les codes département fautifs et leur position."""
-    fautifs = exemples_fautifs(departement, invalides)
-    exemples = fautifs.head(NOMBRE_EXEMPLES)
-
-    raise CodeInseeInvalide(
-        f"{len(fautifs)} code(s) département invalide(s) sur {len(departement)}. "
-        f"Attendu : {FORMAT_DEPARTEMENT_ATTENDU}. "
-        f"Reçu, aux positions {list(exemples.index)} : {list(exemples)}."
+    signaler_valeurs_fautives(
+        CodeInseeInvalide,
+        insee,
+        invalides,
+        sujet="code(s) Insee invalide(s)",
+        format_attendu=FORMAT_ATTENDU,
+        tolerance_possible=tolerance_possible,
     )

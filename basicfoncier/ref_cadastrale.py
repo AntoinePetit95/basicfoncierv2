@@ -17,13 +17,16 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from ._internal.appel import (
-    NOMBRE_EXEMPLES,
+    VALEUR_SEULE,
     SurInvalide,
+    aiguiller,
     en_colonne_arrow,
+    en_dataframe,
     en_serie,
-    erreur_de_type,
-    exemples_fautifs,
+    exiger_meme_index,
     refuser_colonne_non_textuelle,
+    signaler_valeurs_fautives,
+    sont_des_textes,
     valider_option_invalide,
 )
 from ._internal.arrow_commun import masque_alsace_moselle
@@ -49,6 +52,11 @@ _CONSEIL_TEXTE = (
     "n'est plus décomposable : convertissez la colonne à la lecture du fichier."
 )
 
+#: La règle que l'assemblage impose à ses quatre champs.
+_EXIGENCE_MEME_NATURE = (
+    "les quatre champs doivent être tous des chaînes, ou tous des pandas.Series."
+)
+
 
 # --------------------------------------------------------------------------------------
 # API publique
@@ -69,11 +77,10 @@ def to_idu(
     """
     valider_option_invalide(invalide)
 
-    if isinstance(ref, str):
+    if aiguiller(ref) == VALEUR_SEULE:
         return _idu_depuis_texte(ref, invalide)
-    if isinstance(ref, pd.Series):
-        return en_serie(_canoniques_depuis_colonne(ref, invalide), ref.index)
-    raise erreur_de_type(ref, "une chaîne ou une pandas.Series")
+
+    return en_serie(_canoniques_depuis_colonne(ref, invalide), ref.index)
 
 
 def to_short_id(
@@ -94,14 +101,13 @@ def to_short_id(
     """
     valider_option_invalide(invalide)
 
-    if isinstance(ref, str):
+    if aiguiller(ref) == VALEUR_SEULE:
         idu = _idu_depuis_texte(ref, invalide)
         return idu if pd.isna(idu) else _raccourcir_texte(idu)
-    if isinstance(ref, pd.Series):
-        canoniques = _canoniques_depuis_colonne(ref, invalide)
-        courts = en_id_court(decouper(canoniques), masque_alsace_moselle(canoniques))
-        return en_serie(courts, ref.index)
-    raise erreur_de_type(ref, "une chaîne ou une pandas.Series")
+
+    canoniques = _canoniques_depuis_colonne(ref, invalide)
+    courts = en_id_court(decouper(canoniques), masque_alsace_moselle(canoniques))
+    return en_serie(courts, ref.index)
 
 
 def to_parts(
@@ -131,12 +137,11 @@ def to_parts(
     """
     valider_option_invalide(invalide)
 
-    if isinstance(ref, str):
+    if aiguiller(ref) == VALEUR_SEULE:
         idu = _idu_depuis_texte(ref, invalide)
         return (pd.NA,) * 4 if pd.isna(idu) else _decouper_texte(idu)
-    if isinstance(ref, pd.Series):
-        return _parts_depuis_colonne(ref, invalide)
-    raise erreur_de_type(ref, "une chaîne ou une pandas.Series")
+
+    return _parts_depuis_colonne(ref, invalide)
 
 
 def idu_from_parts(
@@ -246,7 +251,13 @@ def _canoniques_depuis_colonne(refs: pd.Series, invalide: SurInvalide) -> pa.Arr
     invalides = positions_invalides(valeurs, canoniques)
 
     if invalide == "erreur" and pc.any(invalides).as_py():
-        _signaler_colonne_invalide(refs, invalides)
+        signaler_valeurs_fautives(
+            ReferenceCadastraleInvalide,
+            refs,
+            invalides,
+            sujet="référence(s) cadastrale(s) invalide(s)",
+            format_attendu=FORMAT_ATTENDU,
+        )
 
     return canoniques
 
@@ -258,10 +269,7 @@ def _parts_depuis_colonne(refs: pd.Series, invalide: SurInvalide) -> pd.DataFram
     # Pas de postcondition par ligne : la largeur est garantie par construction — la
     # normalisation produit exactement quatorze caractères — et la vérifier coûterait
     # un parcours de plus sur le chemin chaud.
-    table = pa.table({champ: colonnes[champ] for champ in CHAMPS})
-    parts = table.to_pandas(types_mapper=pd.ArrowDtype)
-    parts.index = refs.index
-    return parts
+    return en_dataframe(colonnes, CHAMPS, refs.index)
 
 
 # --------------------------------------------------------------------------------------
@@ -278,17 +286,10 @@ def _assembler(
     """Concatène les quatre champs, chacun complété à sa largeur canonique."""
     parties = dict(zip(CHAMPS, (insee, com_abs, section, numero), strict=True))
 
-    if all(isinstance(valeur, str) for valeur in parties.values()):
+    if sont_des_textes(parties, _EXIGENCE_MEME_NATURE):
         return "".join(parties[champ].zfill(LARGEURS[champ]) for champ in CHAMPS)
 
-    if all(isinstance(valeur, pd.Series) for valeur in parties.values()):
-        return _assembler_colonnes(parties)
-
-    natures = ", ".join(f"{champ}={type(valeur).__name__}" for champ, valeur in parties.items())
-    raise TypeError(
-        "les quatre champs doivent être tous des chaînes, ou tous des pandas.Series. "
-        f"Reçu : {natures}."
-    )
+    return _assembler_colonnes(parties)
 
 
 def _assembler_colonnes(parties: dict[str, pd.Series]) -> pd.Series:
@@ -296,12 +297,13 @@ def _assembler_colonnes(parties: dict[str, pd.Series]) -> pd.Series:
     index = parties["insee"].index
     for champ, valeurs in parties.items():
         refuser_colonne_non_textuelle(valeurs, f"la colonne {champ}", _CONSEIL_TEXTE)
-        if not valeurs.index.equals(index):
-            raise ValueError(
-                f"la colonne {champ} n'est pas alignée sur la colonne insee : "
-                f"{len(valeurs)} valeurs contre {len(index)}, index différents. "
-                "Réindexez les colonnes avant de les assembler."
-            )
+        exiger_meme_index(
+            valeurs,
+            index,
+            designation=f"la colonne {champ}",
+            reference="la colonne insee",
+            action="assembler",
+        )
 
     completees = [
         pc.utf8_lpad(
@@ -312,21 +314,3 @@ def _assembler_colonnes(parties: dict[str, pd.Series]) -> pd.Series:
         for champ in CHAMPS
     ]
     return en_serie(pc.binary_join_element_wise(*completees, ""), index)
-
-
-# --------------------------------------------------------------------------------------
-# Contrôles d'appel et messages
-# --------------------------------------------------------------------------------------
-
-
-def _signaler_colonne_invalide(refs: pd.Series, invalides: pa.Array) -> None:
-    """Lève une erreur nommant le nombre de références fautives et quelques exemples."""
-    fautives = exemples_fautifs(refs, invalides)
-    exemples = fautives.head(NOMBRE_EXEMPLES)
-
-    raise ReferenceCadastraleInvalide(
-        f"{len(fautives)} référence(s) cadastrale(s) invalide(s) sur {len(refs)}. "
-        f"Attendu : {FORMAT_ATTENDU}. "
-        f"Reçu, aux positions {list(exemples.index)} : {list(exemples)}. "
-        "Passez invalide='manquant' pour les remplacer par des valeurs manquantes."
-    )

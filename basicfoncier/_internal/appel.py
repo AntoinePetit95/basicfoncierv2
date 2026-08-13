@@ -7,7 +7,8 @@ Les regrouper ici évite qu'elles divergent d'un module à l'autre.
 
 from __future__ import annotations
 
-from typing import Literal
+from collections.abc import Callable, Mapping, Sequence
+from typing import Literal, NoReturn
 
 import pandas as pd
 import pyarrow as pa
@@ -17,7 +18,11 @@ SurInvalide = Literal["erreur", "manquant"]
 OPTIONS_INVALIDE = ("erreur", "manquant")
 
 #: Nombre de valeurs fautives citées dans un message d'erreur portant sur une colonne.
-NOMBRE_EXEMPLES = 5
+_NOMBRE_EXEMPLES = 5
+
+#: Ce qu'annonce le message de refus quand l'entrée n'est ni une valeur seule ni une colonne.
+TEXTE_OU_COLONNE = "une chaîne ou une pandas.Series"
+NOMBRE_OU_COLONNE = "un nombre ou une pandas.Series"
 
 
 def valider_option_invalide(invalide: str) -> None:
@@ -27,9 +32,48 @@ def valider_option_invalide(invalide: str) -> None:
         raise ValueError(f"invalide={invalide!r} est inconnu. Attendu : {attendu}.")
 
 
-def erreur_de_type(valeur: object, attendu: str) -> TypeError:
+def _erreur_de_type(valeur: object, attendu: str) -> TypeError:
     """Construit l'erreur signalant une entrée d'une nature inattendue."""
     return TypeError(f"attendu {attendu}, reçu {type(valeur).__name__}.")
+
+
+#: Les deux chemins qu'une fonction publique peut emprunter.
+VALEUR_SEULE = "valeur_seule"
+COLONNE = "colonne"
+
+Chemin = Literal["valeur_seule", "colonne"]
+
+
+def _est_texte(valeur: object) -> bool:
+    return isinstance(valeur, str)
+
+
+def aiguiller(
+    valeur: object,
+    attendu: str = TEXTE_OU_COLONNE,
+    admis: Callable[[object], bool] = _est_texte,
+) -> Chemin:
+    """Dit lequel des deux chemins une entrée doit emprunter, et refuse les autres.
+
+    Chaque fonction publique accepte une valeur seule ou une colonne, et rend le même
+    genre qu'elle a reçu. Le refus de ce qui n'est ni l'un ni l'autre est écrit **ici et
+    nulle part ailleurs** : huit fonctions le réécrivaient à la main.
+
+    Le chemin est **nommé** plutôt que rendu sous forme de booléen : au site d'appel,
+    ``if aiguiller(x) == VALEUR_SEULE`` dit que l'autre branche traite une colonne, là où
+    un ``else`` laisserait croire qu'elle traite tout le reste — alors que le reste a été
+    refusé ici.
+
+    :param attendu: ce que le message de refus annonce comme entrée acceptable
+    :param admis: ce qui compte comme valeur seule. Le défaut est le texte ; une
+        superficie, elle, est un nombre — et pas n'importe lequel, voir l'appelant.
+    :raises TypeError: l'entrée n'est ni une valeur seule ni une colonne
+    """
+    if isinstance(valeur, pd.Series):
+        return COLONNE
+    if admis(valeur):
+        return VALEUR_SEULE
+    raise _erreur_de_type(valeur, attendu)
 
 
 #: Natures de contenu acceptables pour une colonne d'objets censée porter du texte.
@@ -109,7 +153,100 @@ def en_serie(valeurs: pa.Array, index: pd.Index) -> pd.Series:
     return serie
 
 
-def exemples_fautifs(valeurs: pd.Series, invalides: pa.Array) -> pd.Series:
+def en_dataframe(
+    colonnes: Mapping[str, pa.Array],
+    champs: Sequence[str],
+    index: pd.Index,
+) -> pd.DataFrame:
+    """Assemble plusieurs colonnes Arrow en un ``DataFrame``, index rétabli.
+
+    Le pendant de :func:`en_serie` pour les fonctions qui rendent plusieurs champs.
+    """
+    table = pa.table({champ: colonnes[champ] for champ in champs})
+    parts = table.to_pandas(types_mapper=pd.ArrowDtype)
+    parts.index = index
+    return parts
+
+
+def _exemples_fautifs(valeurs: pd.Series, invalides: pa.Array) -> pd.Series:
     """Extrait quelques valeurs fautives, avec leur position, pour un message d'erreur."""
     masque = pd.Series(invalides.to_numpy(zero_copy_only=False), index=valeurs.index)
     return valeurs[masque]
+
+
+def signaler_valeurs_fautives(
+    erreur: type[Exception],
+    valeurs: pd.Series,
+    fautives: pa.Array,
+    *,
+    sujet: str,
+    format_attendu: str | None = None,
+    tolerance_possible: bool = True,
+) -> NoReturn:
+    """Lève l'erreur métier nommant les valeurs fautives, leur nombre et leur position.
+
+    Un message utile dit trois choses : **combien** de lignes sont en cause sur le total,
+    **ce qui était attendu**, et **quelles valeurs** ont été reçues, à quelles positions.
+    Cinq fonctions écrivaient ce même patron.
+
+    :param sujet: ce qu'on compte, accordé au pluriel — « code(s) Insee invalide(s) »
+    :param format_attendu: omis quand il n'y a pas de format à rappeler, une superficie
+        négative étant fautive par son signe et non par sa forme
+    :param tolerance_possible: faux quand la fonction appelante n'offre pas d'option
+        ``invalide`` — conseiller de la passer enverrait alors l'appelant dans le mur
+    """
+    fautifs = _exemples_fautifs(valeurs, fautives)
+    exemples = fautifs.head(_NOMBRE_EXEMPLES)
+    rappel = f"Attendu : {format_attendu}. " if format_attendu is not None else ""
+    conseil = (
+        " Passez invalide='manquant' pour les remplacer par des valeurs manquantes."
+        if tolerance_possible
+        else ""
+    )
+
+    raise erreur(
+        f"{len(fautifs)} {sujet} sur {len(valeurs)}. "
+        f"{rappel}"
+        f"Reçu, aux positions {list(exemples.index)} : {list(exemples)}.{conseil}"
+    )
+
+
+def sont_des_textes(parties: Mapping[str, object], exigence: str) -> bool:
+    """Dit si toutes les parties sont des chaînes, et refuse qu'on les mélange.
+
+    Les fonctions d'assemblage reçoivent plusieurs champs à la fois. Les mélanger n'a pas
+    de sens : deux chaînes et deux colonnes ne s'assemblent pas.
+
+    :param exigence: la phrase qui énonce la règle, propre à l'appelant — le nombre de
+        champs et leur nom en dépendent
+    """
+    if all(isinstance(valeur, str) for valeur in parties.values()):
+        return True
+    if all(isinstance(valeur, pd.Series) for valeur in parties.values()):
+        return False
+
+    natures = ", ".join(f"{champ}={type(valeur).__name__}" for champ, valeur in parties.items())
+    raise TypeError(f"{exigence} Reçu : {natures}.")
+
+
+def exiger_meme_index(
+    valeurs: pd.Series,
+    index: pd.Index,
+    *,
+    designation: str,
+    reference: str,
+    action: str,
+) -> None:
+    """Refuse une colonne qui n'est pas alignée sur celle qui sert de référence.
+
+    Sans ce contrôle, pandas alignerait silencieusement sur l'union des index et
+    produirait des lignes manquantes là où l'appelant attend un résultat.
+    """
+    if valeurs.index.equals(index):
+        return
+
+    raise ValueError(
+        f"{designation} n'est pas alignée sur {reference} : "
+        f"{len(valeurs)} valeurs contre {len(index)}, index différents. "
+        f"Réindexez les colonnes avant de les {action}."
+    )
