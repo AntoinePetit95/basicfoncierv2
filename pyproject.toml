@@ -39,10 +39,14 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.6", "numpy>=1.26"]
 
+# Ces trois liens désignent le dépôt qui contient réellement ce code. Ils pointaient
+# jusqu'ici vers `basicfoncier`, qui est le dépôt du **prédécesseur** : le lien Changelog
+# y était un 404 — ce dépôt n'a pas de CHANGELOG.md — et une issue ouverte depuis PyPI
+# atterrissait sur l'autre paquet. À reprendre le jour du renommage, voir docs/CHANTIERS.md.
 [project.urls]
-Repository = "https://github.com/AntoinePetit95/basicfoncier"
-Changelog = "https://github.com/AntoinePetit95/basicfoncier/blob/main/CHANGELOG.md"
-Issues = "https://github.com/AntoinePetit95/basicfoncier/issues"
+Repository = "https://github.com/AntoinePetit95/basicfoncierv2"
+Changelog = "https://github.com/AntoinePetit95/basicfoncierv2/blob/main/CHANGELOG.md"
+Issues = "https://github.com/AntoinePetit95/basicfoncierv2/issues"
 
 [tool.setuptools.packages.find]
 include = ["basicfoncier*"]

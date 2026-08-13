@@ -13,9 +13,9 @@
 > prenait dans l'ordre `(insee, section, numero, com_abs)`. **Un appel positionnel recopié
 > tel quel produit une référence fausse sans lever d'erreur.** Relisez chaque appel.
 
-Ce paquet **garde le nom `basicfoncier`** : la version publiée sur PyPI, `1.0.0`, remplace celle qui s'installait depuis [le dépôt d'origine](https://github.com/AntoinePetit95/basicfoncier), numérotée `0.1`. Cette dernière n'a jamais été publiée sur PyPI ; elle reste disponible depuis son dépôt et n'en sera ni retirée ni modifiée.
+Ce paquet **garde le nom `basicfoncier`** : la version publiée sur PyPI, `1.0.0`, remplace celle qui s'installait depuis un dépôt GitHub, numérotée `0.1`. Cette dernière n'a jamais été publiée sur PyPI, et elle est figée : elle ne sera pas corrigée. **Son dépôt est destiné à être supprimé** — le code fautif qu'elle contient est recopié dans [BUGS.md](BUGS.md), pour que les constats de ce document restent vérifiables une fois la source disparue.
 
-> ⚠️ **L'API change entièrement d'une version à l'autre.** C'est ce que signale le passage à une version majeure : `1.0.0` n'est pas une évolution de `0.1`, c'est une réécriture. Un programme qui fait `import basicfoncier` sans épingler sa version doit être relu avant de basculer. Épinglez `basicfoncier==0.1` le temps de migrer, ou `basicfoncier>=1.0` une fois la migration faite.
+> ⚠️ **L'API change entièrement d'une version à l'autre.** C'est ce que signale le passage à une version majeure : `1.0.0` n'est pas une évolution de `0.1`, c'est une réécriture. Un programme qui fait `import basicfoncier` sans épingler sa version doit être relu avant de basculer. **Rester sur l'ancienne n'est pas une option de repli** : la `0.1` n'étant pas sur PyPI, `pip install 'basicfoncier==0.1'` n'y trouve rien, et son dépôt GitHub — sa seule voie d'installation — est destiné à être supprimé. Épinglez `basicfoncier==1.0.*` et migrez.
 
 Dans tout ce document, **« le v1 » désigne `basicfoncier` 0.1** et **« le v2 » la présente version 1.0**. Les deux portent le même nom de paquet ; seule la version les distingue.
 

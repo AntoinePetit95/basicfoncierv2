@@ -132,9 +132,9 @@ to_commune_et_arrondissement(parts[0])  # ('75056', '107')
 
 ## Venir de `basicfoncier`
 
-Ce paquet **garde le nom `basicfoncier`** mais en réécrit l'API. La version `1.0.0` publiée ici succède à la `0.1`, qui s'installait depuis [le dépôt d'origine](https://github.com/AntoinePetit95/basicfoncier) et n'a jamais été publiée sur PyPI. Elle y reste disponible et n'en sera pas retirée.
+Ce paquet **garde le nom `basicfoncier`** mais en réécrit l'API. La version `1.0.0` publiée ici succède à la `0.1`, qui s'installait depuis un dépôt GitHub et n'a jamais été publiée sur PyPI. Cette version `0.1` est figée : elle ne recevra ni correctif ni nouvelle publication, et son dépôt est destiné à être retiré. Les trois résultats faux qu'elle produit sont décrits, code à l'appui, dans `docs/BUGS.md`.
 
-**Si vous utilisez déjà `basicfoncier` sans épingler sa version, relisez vos appels avant de basculer** : le passage à une version majeure signale que rien de l'ancienne API n'est garanti. `pip install 'basicfoncier<1'` vous laisse le temps de migrer.
+**Si vous utilisez déjà `basicfoncier` sans épingler sa version, relisez vos appels avant de basculer** : le passage à une version majeure signale que rien de l'ancienne API n'est garanti. Épingler l'ancienne n'est pas une échappatoire : la `0.1` n'étant pas sur PyPI, `pip install 'basicfoncier<1'` n'y trouve rien, et son dépôt GitHub — sa seule voie d'installation — est destiné à être retiré. Relisez vos appels et basculez ; épinglez `basicfoncier==1.0.*`, qui vous met à l'abri d'une évolution ultérieure — mais pas de celle-ci, qui est à faire.
 
 **[docs/MIGRATION.md](docs/MIGRATION.md) donne la correspondance complète des fonctions**, les changements de comportement, et un avertissement à lire avant tout : deux fonctions du v1 renvoient des valeurs fausses, et son wrapper pandas transforme les erreurs en valeurs manquantes silencieuses. Si vous les consommez, vérifiez vos colonnes de sortie avant de migrer.
 
