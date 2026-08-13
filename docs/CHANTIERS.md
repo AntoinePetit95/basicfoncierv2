@@ -28,15 +28,6 @@ distinctes, ces deux nombres deviennent faux. Une colonne où la même valeur fa
 apparaît mille fois doit toujours signaler mille lignes, pas une. C'est le vrai travail
 de cette version, et il mérite ses propres tests.
 
-### Rendre le banc d'essai capable de mesurer un écart de 5 %
-
-Il enchaîne aujourd'hui les variantes l'une après l'autre. Sur cette machine, la dérive
-entre deux exécutions dépasse **10 %**, si bien qu'aucun écart inférieur n'est
-détectable — et que les signes s'inversent d'un tour à l'autre. Le remède est connu et
-déjà éprouvé hors dépôt : chronométrer les variantes **à tour de rôle dans une même
-boucle** et comparer les médianes. Tant que ce n'est pas fait, aucune décision de
-performance fine ne peut s'appuyer sur `python -m benchmarks`.
-
 ### Noyau fusionné en C ou Cython — reporté, pas abandonné
 
 Plancher mesuré à 25 ms contre 500 ms : la seule piste donnant accès à un ordre de
@@ -168,4 +159,9 @@ l'arrivée d'une quatrième famille.
   structurellement — aucun noyau Arrow n'est modifié, le travail par ligne est identique
   au bit près — et non par le chronomètre. Rendre le banc d'essai capable de détecter
   5 % demanderait de le refondre en comparaisons entrelacées, ce qui est un chantier en
-  soi.
+  soi. **Fait le 2026-08-13** — voir `DECISIONS.md`. Le banc d'essai n'annonce plus rien
+  qu'il ne soutienne, et `--tours` permet d'atteindre le seuil de 5 %. Mais le prix est
+  plus élevé que je ne l'avais d'abord écrit : au bruit que cette machine produit
+  réellement, il faut **une à deux centaines de tours**, non une vingtaine. Le seuil de
+  5 % n'est donc pas un critère utilisable en routine ; c'est une mesure qu'on décide de
+  payer, ou bien une machine qu'on met au repos.

@@ -18,6 +18,12 @@ versionnage [SemVer](https://semver.org/lang/fr/).
   plus qu'en un exemplaire, dans `_internal/appel.py`. **Aucun changement de
   comportement** — messages d'erreur identiques au caractère près, vérifiés sur
   301 scénarios face à la version précédente.
+- Le banc d'essai chronomètre les variantes **entrelacées** et calcule leur gain tour par
+  tour, au lieu de mesurer l'une puis l'autre. Chaque gain est encadré à 95 % et n'est
+  annoncé que si son intervalle exclut 1 ; `--tours` resserre cet intervalle. Il coûte en
+  échange deux fois plus d'appels qu'avant — cinq tours et une chauffe, contre trois
+  mesures. Les rapports de débit publiés jusqu'ici mêlent l'écart entre les
+  implémentations à la dérive de la machine entre deux moments.
 - Le générateur du banc d'essai suit désormais la distribution cadastrale réelle, ajustée
   sur 837 531 contenances de la DGFiP. Il tirait jusqu'ici une loi uniforme, qui produit
   99,5 % de parcelles d'au moins un hectare contre 21,4 % dans la réalité. Corse et
