@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import importlib.util
+import math
 import string
 import sys
 from collections.abc import Callable
@@ -180,6 +181,10 @@ def rapporter(nom: str, lignes: int, mesure: Mesure) -> None:
 
 def conclure(encadrement: Encadrement) -> str:
     """Formule le gain du v2 sur le v1, ou dit qu'il n'y a rien à annoncer."""
+    if math.isinf(encadrement.borne_haute):
+        # Tous les tours ont rendu le même rapport au bit près : l'horloge n'a pas séparé
+        # les variantes. Afficher « x0.00 à xinf » serait exact et illisible.
+        return "gain v2 / v1 : non concluant — tous les tours donnent le même rapport"
     bornes = f"x{encadrement.borne_basse:.2f} à x{encadrement.borne_haute:.2f}"
     if not encadrement.concluant:
         return f"gain v2 / v1 : non concluant — l'intervalle {bornes} contient 1"

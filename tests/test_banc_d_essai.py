@@ -9,11 +9,14 @@ autrement — voir :class:`TestSensDuGain`.
 import math
 import pathlib
 import re
+import sys
 
 import pytest
 
-from benchmarks.__main__ import comparer, conclure, executer
+from benchmarks.__main__ import analyser_arguments, comparer, conclure, executer
 from benchmarks.mesure import (
+    REPETITIONS,
+    TOURS_MINIMUM,
     Encadrement,
     Mesure,
     encadrer,
@@ -68,9 +71,9 @@ class TestDureesRefusees:
         with pytest.raises(ValueError, match="strictement positif"):
             resumer([1.0, fautive, 1.0])
 
-    def test_le_message_situe_la_faute(self):
-        with pytest.raises(ValueError, match=r"1 durée\(s\) sur 3"):
-            resumer([1.0, 0.0, 1.0])
+    def test_le_message_compte_les_fautes_et_nomme_la_premiere(self):
+        with pytest.raises(ValueError, match=r"2 durée\(s\) sur 4 .*dont -5\.0"):
+            resumer([1.0, -5.0, 1.0, 0.0])
 
     def test_une_duree_nulle_de_la_candidate_ne_ressort_pas_en_division_par_zero(self):
         with pytest.raises(ValueError, match="strictement positif"):
@@ -274,9 +277,22 @@ class TestReglagesRefuses:
             executer(lignes=10, chemin_v1=pathlib.Path("introuvable"), tours=tours)
         assert capsys.readouterr().out == ""
 
-    def test_un_nombre_de_lignes_nul_est_refuse_aussi(self):
+    def test_un_nombre_de_lignes_nul_est_refuse_avant_d_avoir_rien_imprime(self, capsys):
         with pytest.raises(ValueError, match="au moins une valeur"):
             executer(lignes=0, chemin_v1=pathlib.Path("introuvable"), tours=5)
+        assert capsys.readouterr().out == ""
+
+    def test_deux_tours_exactement_sont_admis(self):
+        """La borne elle-même, sans quoi rien ne distingue `<` de `<=`."""
+        assert set(mesurer_ensemble({"a": lambda: None}, repetitions=TOURS_MINIMUM)) == {"a"}
+        assert encadrer([1.5, 2.5]).gain > 0
+
+    def test_le_reglage_par_defaut_est_utilisable(self, monkeypatch):
+        """Un défaut sous le minimum ferait échouer toute exécution sans option."""
+        monkeypatch.setattr(sys, "argv", ["benchmarks"])
+        arguments = analyser_arguments()
+        assert arguments.tours == REPETITIONS >= TOURS_MINIMUM
+        assert arguments.lignes > 0
 
 
 class TestMesure:
