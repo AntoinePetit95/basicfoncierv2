@@ -28,16 +28,14 @@ distinctes, ces deux nombres deviennent faux. Une colonne où la même valeur fa
 apparaît mille fois doit toujours signaler mille lignes, pas une. C'est le vrai travail
 de cette version, et il mérite ses propres tests.
 
-### Repasse d'architecture
+### Rendre le banc d'essai capable de mesurer un écart de 5 %
 
-Trois familles publiques font la même chose de trois façons : la répartition
-scalaire/colonne est réécrite à la main 8 fois, le patron de message d'erreur 5 fois, et
-la conversion d'un résultat multi-colonnes en `DataFrame` est dupliquée mot pour mot.
-À unifier dans `_internal/appel.py` **avant** d'y greffer le levier dictionnaire, qui
-passe par ce même chemin d'appel.
-
-Contrainte : l'API publique de la 1.0.0 ne bouge pas, et les tests existants passent sans
-modification.
+Il enchaîne aujourd'hui les variantes l'une après l'autre. Sur cette machine, la dérive
+entre deux exécutions dépasse **10 %**, si bien qu'aucun écart inférieur n'est
+détectable — et que les signes s'inversent d'un tour à l'autre. Le remède est connu et
+déjà éprouvé hors dépôt : chronométrer les variantes **à tour de rôle dans une même
+boucle** et comparer les médianes. Tant que ce n'est pas fait, aucune décision de
+performance fine ne peut s'appuyer sur `python -m benchmarks`.
 
 ### Noyau fusionné en C ou Cython — reporté, pas abandonné
 
@@ -121,4 +119,21 @@ l'arrivée d'une quatrième famille.
   x10,0, qui est précisément le cas des lots de parcelles mitoyennes.
 - **`superficie._refuser_non_nombre` reste une exception à l'unification.** Une superficie
   est un nombre et non une chaîne : il faut y exclure `bool` tout en acceptant les
-  scalaires numpy. C'est une asymétrie de domaine, pas une dérive.
+  scalaires numpy. C'est une asymétrie de domaine, pas une dérive. Devenu
+  `_est_nombre`, il est passé en prédicat à `est_scalaire` plutôt que supprimé.
+- **`_CONSEIL_TEXTE` n'est pas dupliqué**, contrairement à ce que la relecture
+  d'architecture annonçait : seul le commentaire au-dessus est identique d'un module à
+  l'autre, les trois textes diffèrent réellement — celui de `commune` parle des zéros de
+  tête d'un code Insee, celui de `ref_cadastrale` d'une référence non décomposable, celui
+  de `superficie` oriente vers l'autre fonction. Rien à factoriser.
+- **`_internal/arrow_commun.py` reste en place**, pour la même raison : son type
+  `Colonnes` sert bien à la décomposition **et** à la composition. Seul
+  `masque_alsace_moselle` est propre à une famille ; le déplacer laisserait un module de
+  dix lignes pour un alias de type, ce qui est pire que le défaut qu'on corrige.
+- **Le seuil « pas plus de 5 % de perte » du plan est inapplicable en l'état.** Mesuré
+  entrelacé, le banc d'essai de cette machine a un plancher de bruit de **±10 %** : les
+  écarts changent de signe d'une exécution à l'autre. La non-régression est donc établie
+  structurellement — aucun noyau Arrow n'est modifié, le travail par ligne est identique
+  au bit près — et non par le chronomètre. Rendre le banc d'essai capable de détecter
+  5 % demanderait de le refondre en comparaisons entrelacées, ce qui est un chantier en
+  soi.
