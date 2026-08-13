@@ -14,7 +14,7 @@ livrer avec ses tests.
 
 | # | Unité | Ce qu'elle fait |
 |---|---|---|
-| 1 | `_internal/repetitions.py` | Sonder 10 000 lignes (≈ 1 ms) et choisir : plages, dictionnaire ou calcul direct |
+| 1 | ~~`_internal/repetitions.py`~~ | **Fait le 2026-08-13.** Sonde mesurée à 0,4–1,5 ms, et les quatre régimes réels correctement orientés |
 | 2 | Entrées encodées | Accepter `category` et `dictionary` — corrige le défaut consigné dans `BUGS.md` |
 | 3 | Report des positions fautives | Redéployer le masque d'invalidité sur les lignes **seulement s'il y a une erreur** |
 | 4 | Famille `commune` | Le gain principal : x5,5 par le dictionnaire, x10,0 par les plages |
@@ -65,6 +65,21 @@ Ordre à respecter, faute de quoi on casse ce qu'on veut préserver :
 ## Décisions en attente
 
 Ce que je n'ai pas tranché seul. Chacune porte ma recommandation et ce qui la déciderait.
+
+### Où placer exactement le seuil du dictionnaire ?
+
+La sonde bascule vers le calcul direct au-dessus de **50 %** de valeurs distinctes dans
+l'échantillon. Ce nombre n'est pas mesuré : il est posé entre deux mesures. Sur données
+réelles, le dictionnaire rend **x6,2** à 29 % de valeurs distinctes et **x0,41** à 85 %.
+Aucune colonne cadastrale ne s'est présentée entre les deux, si bien que la bascule n'a
+pas été observée.
+
+*Recommandation :* mesurer le gain à 40, 50, 60 et 70 % sur des colonnes fabriquées, avec
+le banc d'essai désormais capable de trancher, et poser le seuil là où le gain passe sous
+1. **Ce qui déciderait :** cette mesure, qui est un travail à part entière — elle demande
+un jeu de colonnes synthétiques dont la seule variable soit la variété. Tant qu'elle n'est
+pas faite, le seuil est prudent dans le bon sens : il refuse le dictionnaire plus tôt
+qu'il ne le faudrait peut-être, ce qui coûte un gain, jamais une perte.
 
 ### Faut-il un interrupteur pour désactiver l'encodage ?
 
