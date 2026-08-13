@@ -159,5 +159,9 @@ l'arrivée d'une quatrième famille.
   structurellement — aucun noyau Arrow n'est modifié, le travail par ligne est identique
   au bit près — et non par le chronomètre. Rendre le banc d'essai capable de détecter
   5 % demanderait de le refondre en comparaisons entrelacées, ce qui est un chantier en
-  soi. **Fait le 2026-08-13** — voir `DECISIONS.md`. Le seuil de 5 % est désormais
-  atteignable, mais pas au réglage par défaut : il demande une vingtaine de tours.
+  soi. **Fait le 2026-08-13** — voir `DECISIONS.md`. Le banc d'essai n'annonce plus rien
+  qu'il ne soutienne, et `--tours` permet d'atteindre le seuil de 5 %. Mais le prix est
+  plus élevé que je ne l'avais d'abord écrit : au bruit que cette machine produit
+  réellement, il faut **une à deux centaines de tours**, non une vingtaine. Le seuil de
+  5 % n'est donc pas un critère utilisable en routine ; c'est une mesure qu'on décide de
+  payer, ou bien une machine qu'on met au repos.

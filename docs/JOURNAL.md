@@ -8,7 +8,7 @@
 - `benchmarks/mesure.py` sépare le calcul du chronomètre ; `tests/test_banc_d_essai.py` l'éprouve sur des durées injectées, le banc d'essai n'ayant jusqu'ici aucun test.
 
 **Fichiers :** `benchmarks/{mesure,__main__}.py`, `tests/test_banc_d_essai.py`, `docs/{DECISIONS,CHANTIERS,JOURNAL}.md`, `CHANGELOG.md`
-**Vérifié par :** `pytest` → 678 passed, les 636 existants inchangés ; `ruff` propre ; `python -m benchmarks --lignes 1000000` annonce cinq gains sur sept, de x1,6 à x15,4, et **refuse** les deux autres.
+**Vérifié par :** `pytest` → 685 passed, les 636 existants inchangés ; `ruff` propre ; `python -m benchmarks --lignes 1000000` annonce les gains d'ordre de grandeur et refuse ceux que le bruit noie — le décompte exact varie d'une exécution à l'autre, ce qui est précisément le comportement recherché.
 **À savoir :** mon premier critère — « concluant si tous les tours désignent le même gagnant » — était faux dans le mauvais sens : la revue a montré que sa puissance **diminue** quand on ajoute des tours (55 % à 5 tours, 0,3 % à 50) et qu'il se trompe une fois sur seize. Remplacé par un intervalle de Student sur les logarithmes, mesuré à 5 % de fausse alerte.
 
 ## 2026-08-13 — Préserver le code du v1 avant que son dépôt disparaisse

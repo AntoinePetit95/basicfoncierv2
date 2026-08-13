@@ -8,7 +8,9 @@ Les variantes sont donc chronométrées **à tour de rôle dans une même boucle
 rapport est calculé tour par tour. L'appariement ne supprime pas le bruit — relevé sur
 six tours réels, un à-coup peut ralentir une variante 2,5 fois et l'autre seulement 1,2
 fois — mais il en retire la part commune, et c'est beaucoup : sur ces mêmes six tours,
-l'étendue passe de 133 % et 251 % sur les durées à 78 % sur leur rapport.
+l'étendue passe de 133 % et 251 % sur les durées à 78 % sur leur rapport. Ce n'est pas
+une garantie tour à tour, seulement une tendance : sur douze exécutions d'une même
+comparaison, l'étendue du rapport va de 23 % à 777 %.
 
 Ce qui reste est traité pour ce qu'il est : un échantillon. :func:`encadrer` en tire un
 intervalle à 95 %, et le gain n'est annoncé que si cet intervalle exclut 1. Un intervalle
@@ -32,6 +34,10 @@ from dataclasses import dataclass
 #: resserrer les intervalles.
 REPETITIONS = 5
 
+#: Nombre de tours en deçà duquel aucun gain ne peut être encadré : un tour unique ne dit
+#: rien de sa propre dispersion.
+TOURS_MINIMUM = 2
+
 #: Quantile de Student à 95 % bilatéral, par degré de liberté, soit un tour de moins que
 #: le nombre de tours mesurés. Table close et non calculée, faute
 #: de scipy : le banc d'essai ne va pas s'offrir une dépendance pour vingt nombres.
@@ -44,8 +50,8 @@ _STUDENT_95 = {
 
 #: Au-delà de la table, on garde la valeur de vingt degrés de liberté. Elle est plus large
 #: que la vraie, qui décroît vers 1,96 : l'intervalle est donc un peu trop prudent, ce qui
-#: est le bon sens de l'erreur. Retomber sur 1,96 le rendrait trop étroit, et le taux de
-#: fausse alerte passait alors de 5 % à 8 % — mesuré.
+#: est le bon sens de l'erreur. Retomber sur 1,96 le rendrait trop étroit : mesuré à
+#: 22 tours, la fausse alerte passe alors de 4,9 % à 6,2 %.
 _QUANTILE_AU_DELA_DE_LA_TABLE = 2.086
 
 
@@ -99,11 +105,15 @@ def _refuser_durees_inexploitables(durees: Sequence[float]) -> None:
     """
     if not durees:
         raise ValueError("aucune durée à résumer : il faut au moins un tour mesuré.")
-    fautives = [duree for duree in durees if not duree > 0 or math.isinf(duree)]
+    _refuser_hors_domaine(durees, "durée(s)", "une durée")
+
+
+def _refuser_hors_domaine(valeurs: Sequence[float], sujet: str, exigence: str) -> None:
+    fautives = [valeur for valeur in valeurs if not valeur > 0 or math.isinf(valeur)]
     if fautives:
         raise ValueError(
-            f"{len(fautives)} durée(s) sur {len(durees)} hors du domaine mesurable, "
-            f"dont {fautives[0]} : une durée est un réel strictement positif et fini."
+            f"{len(fautives)} {sujet} sur {len(valeurs)} hors du domaine exploitable, "
+            f"dont {fautives[0]} : {exigence} est un réel strictement positif et fini."
         )
 
 
@@ -165,13 +175,25 @@ def encadrer(rapports: Sequence[float]) -> Encadrement:
     en racine du nombre de tours, si bien qu'un écart de quelques pour-cent devient
     détectable en allongeant la mesure — voir :data:`REPETITIONS`. Un écart de 50 % qui
     n'est pas stable, lui, reste refusé quel que soit le nombre de tours.
+
+    Le gain est une moyenne, là où :func:`resumer` défend la médiane. Ce n'est pas une
+    contradiction : l'espace des logarithmes amortit déjà les à-coups, et un intervalle
+    de Student se construit sur la moyenne, pas sur la médiane. Une médiane des rapports
+    n'aurait pas d'intervalle à lui opposer.
     """
-    if len(rapports) < 2:
+    if len(rapports) < TOURS_MINIMUM:
         raise ValueError(
-            f"{len(rapports)} tour(s) : il en faut au moins deux pour encadrer un gain, "
+            f"{len(rapports)} tour(s) : il en faut au moins {TOURS_MINIMUM} pour encadrer un gain, "
             "un tour unique ne dit rien de sa propre dispersion."
         )
     _refuser_rapports_inexploitables(rapports)
+
+    if len(set(rapports)) == 1:
+        # Des rapports rigoureusement identiques ne disent rien de leur propre dispersion :
+        # l'intervalle de Student n'y est pas défini. Du vrai travail n'en produit jamais ;
+        # une horloge trop grossière pour séparer les tours, si. On refuse de conclure
+        # plutôt que d'annoncer une certitude sur un échantillon dégénéré.
+        return Encadrement(gain=rapports[0], borne_basse=0.0, borne_haute=math.inf)
 
     logarithmes = [math.log(rapport) for rapport in rapports]
     moyenne = sum(logarithmes) / len(logarithmes)
@@ -185,12 +207,7 @@ def encadrer(rapports: Sequence[float]) -> Encadrement:
 
 
 def _refuser_rapports_inexploitables(rapports: Sequence[float]) -> None:
-    fautifs = [rapport for rapport in rapports if not rapport > 0 or math.isinf(rapport)]
-    if fautifs:
-        raise ValueError(
-            f"{len(fautifs)} rapport(s) sur {len(rapports)} hors du domaine du logarithme, "
-            f"dont {fautifs[0]} : un rapport de durées est strictement positif et fini."
-        )
+    _refuser_hors_domaine(rapports, "rapport(s)", "un rapport de durées")
 
 
 def _quantile_95(degres_de_liberte: int) -> float:

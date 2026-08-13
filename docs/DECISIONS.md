@@ -12,16 +12,23 @@
 
 | Tours | Test des signes | Intervalle à 95 % |
 |---|---|---|
-| 3 | 70 % | 23 % |
-| 5 | 55 % | 55 % |
-| 10 | **31 %** | 96 % |
+| 3 | 70 % | 24 % |
+| 5 | 55 % | 54 % |
+| 10 | **31 %** | 93 % |
 | 20 | **9 %** | 100 % |
 
-Le test des signes devient **moins** capable à mesure qu'on mesure plus longtemps : le réflexe normal — « c'est bruité, augmentons le nombre de tours » — le détruisait. Son taux de fausse alerte vaut 2/2ⁿ, soit 6,2 % par comparaison à cinq tours ; sur sept comparaisons, une exécution sur trois annonçait un gain inexistant. Vérifié sur du vrai code, une opération comparée à elle-même : 2 fausses alertes sur 40. L'intervalle, lui, tient ses 5 % quel que soit le nombre de tours.
+Le test des signes devient **moins** capable à mesure qu'on mesure plus longtemps : le réflexe normal — « c'est bruité, augmentons le nombre de tours » — le détruisait. Son taux de fausse alerte vaut 2/2ⁿ, soit 6,2 % par comparaison à cinq tours ; sur sept comparaisons, une exécution sur trois annonçait un gain inexistant. Vérifié sur du vrai code, une opération comparée à elle-même : 2 fausses alertes sur 40. L'intervalle, lui, tient ses 5 % de 2 à 20 tours (4,8 à 5,1 % mesurés) et devient conservateur au-delà — 3,9 % à 100 tours, à cause du plafond posé sur le quantile.
 
-**Ce que le banc d'essai sait détecter, et ce qu'il ne sait pas.** À cinq tours il reconnaît un gain franc — 96 % sur un x2 avec 30 % de bruit — mais **pas** un écart de quelques pour-cent : avec le bruit de cette machine, un gain réel de 5 % n'est reconnu qu'une fois sur six. C'est à cela que sert `--tours`, l'intervalle se resserrant en racine du nombre de tours. Le seuil de 5 % demandé au chantier est donc atteignable, à une vingtaine de tours, et non au réglage par défaut.
+**Ce que le banc d'essai sait détecter, et ce qu'il ne sait pas.** À cinq tours il reconnaît un gain franc — 96 % sur un x2 avec 30 % de bruit — mais **pas** un écart de quelques pour-cent. Tout dépend alors du bruit, et les deux régimes ne se confondent pas :
 
-**Écarté :** comparer les médianes de chaque variante, comme le prévoyait le plan — l'étendue des durées atteint 374 % là où celle du rapport reste sous 40 %, si bien qu'un critère fondé sur les durées refuserait presque tout. Écarté aussi : une dépendance à scipy pour vingt quantiles.
+| Bruit sur le rapport | Tours pour reconnaître un gain vrai de 5 % |
+|---|---|
+| 4 % — machine au repos | 10 tours (93 %), 20 tours (100 %) |
+| **17 % — cette machine en usage courant** | 20 tours (23 %), 100 tours (78 %), **200 tours (98 %)** |
+
+Le seuil de 5 % demandé au chantier est donc atteignable, mais il se paie : une vingtaine de tours sur une machine au repos, **une à deux centaines** sur celle-ci telle qu'elle est. C'est à cela que sert `--tours`. Le réglage par défaut, lui, n'est pas fait pour ça.
+
+**Écarté :** comparer les médianes de chaque variante, comme le prévoyait le plan. L'étendue des durées est régulièrement plusieurs fois celle du rapport — sur douze exécutions de la même comparaison, une étendue de durée montant à 861 % contre une médiane de 41 % sur le rapport — si bien qu'un critère fondé sur les durées refuserait beaucoup de gains réels. L'appariement ne garantit pas cet écart tour à tour, il le rend seulement fréquent : sur ces douze exécutions, l'étendue du rapport va de 23 % à 777 %. Écarté aussi : une dépendance à scipy pour vingt quantiles.
 
 **Conséquence sur ce fichier :** tout chiffre de débit antérieur à cette date sort de l'ancien banc d'essai. Les gains d'un ordre de grandeur restent valides — aucun bruit ne fabrique un x10. Les écarts proches de 1, eux, ne sont plus soutenus par leur mesure ; les entrées concernées portent désormais un avertissement.
 

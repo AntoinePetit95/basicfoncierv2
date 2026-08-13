@@ -26,6 +26,7 @@ from basicfoncier.ref_cadastrale import to_idu, to_parts, to_short_id
 from basicfoncier.superficie import from_ha_a_ca, to_ha_a_ca, to_hectares
 from benchmarks.mesure import (
     REPETITIONS,
+    TOURS_MINIMUM,
     Encadrement,
     Mesure,
     encadrer,
@@ -182,7 +183,7 @@ def conclure(encadrement: Encadrement) -> str:
     bornes = f"x{encadrement.borne_basse:.2f} à x{encadrement.borne_haute:.2f}"
     if not encadrement.concluant:
         return f"gain v2 / v1 : non concluant — l'intervalle {bornes} contient 1"
-    return f"gain v2 / v1 : x{encadrement.gain:.1f}   ({bornes} à 95 %)"
+    return f"gain v2 / v1 : x{encadrement.gain:.2f}   ({bornes} à 95 %)"
 
 
 def comparer(
@@ -352,8 +353,22 @@ def mesurer_communes(lignes: int, v1: SimpleNamespace | None, tours: int) -> Non
     )
 
 
+def _refuser_tours_insuffisants(tours: int) -> None:
+    """Deux tours au minimum : un seul ne dit rien de sa propre dispersion.
+
+    Contrôlé ici, à l'entrée, et non trois couches plus bas : sans cela le banc d'essai
+    imprime son en-tête et ses premières mesures avant de s'interrompre sur une trace.
+    """
+    if tours < TOURS_MINIMUM:
+        raise ValueError(
+            f"tours={tours} : il en faut au moins {TOURS_MINIMUM} pour encadrer un gain."
+        )
+
+
 def executer(lignes: int, chemin_v1: Path, tours: int) -> None:
     """Lance toutes les mesures et affiche le rapport."""
+    _refuser_nombre_nul(lignes)
+    _refuser_tours_insuffisants(tours)
     nombre = f"{lignes:,}".replace(",", " ")
     print(f"{nombre} lignes, {tours} tours entrelacés, gain encadré à 95 %\n")
 

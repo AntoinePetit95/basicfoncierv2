@@ -7,10 +7,12 @@ autrement — voir :class:`TestSensDuGain`.
 """
 
 import math
+import pathlib
+import re
 
 import pytest
 
-from benchmarks.__main__ import comparer, conclure
+from benchmarks.__main__ import comparer, conclure, executer
 from benchmarks.mesure import (
     Encadrement,
     Mesure,
@@ -144,19 +146,40 @@ class TestEncadrer:
         assert encadrer([1.04, 1.05, 1.06]).concluant
         assert encadrer([1.04, 1.05, 1.06] * 7).concluant
 
+    def test_l_intervalle_vaut_exactement_ce_qu_il_doit_valoir(self):
+        """Valeurs de référence, calculées hors de ce dépôt, au réglage par défaut.
+
+        Cinq tours, donc **quatre** degrés de liberté et t = 2,776. Ce test épingle en un
+        seul point le nombre de degrés de liberté, la valeur de table qui va avec, et le
+        correctif de Bessel. Les trois se trompent sans lui : la suite reste verte quand
+        on écrit `n` au lieu de `n - 1`, ou quand on fausse une valeur de la table.
+        """
+        encadrement = encadrer([1.0, 1.1, 1.2, 1.3, 1.4])
+        assert encadrement.gain == pytest.approx(1.191596, abs=5e-7)
+        assert encadrement.borne_basse == pytest.approx(1.010256, abs=5e-7)
+        assert encadrement.borne_haute == pytest.approx(1.405486, abs=5e-7)
+
     def test_au_dela_de_la_table_le_quantile_reste_celui_de_vingt_degres(self):
-        """Retomber sur 1,96 rendrait l'intervalle trop étroit : 8 % de fausse alerte."""
-        rapports = [1.10, 0.90] * 11  # 22 tours, soit 21 degrés de liberté, hors table
+        """Retomber sur 1,96 rendrait l'intervalle trop étroit — 6,2 % de fausse alerte.
+
+        Vingt-deux tours, soit vingt et un degrés de liberté : hors table. La demi-largeur
+        attendue vaut 2,086 fois l'erreur-type, calculée ici à la main.
+        """
+        rapports = [1.10, 1 / 1.10] * 11
+        # Une valeur et son inverse, alternées : la moyenne des logarithmes est nulle, et
+        # leur écart-type vaut ln(1,10) au facteur de Bessel près.
+        ecart_type = math.log(1.10) * math.sqrt(len(rapports) / (len(rapports) - 1))
+        attendu = 2.086 * ecart_type / math.sqrt(len(rapports))
         encadrement = encadrer(rapports)
-        logarithmes = [math.log(rapport) for rapport in rapports]
-        moyenne = sum(logarithmes) / len(logarithmes)
-        variance = sum((valeur - moyenne) ** 2 for valeur in logarithmes) / (len(rapports) - 1)
-        attendu = 2.086 * math.sqrt(variance / len(rapports))
-        assert math.log(encadrement.borne_haute / encadrement.gain) == pytest.approx(attendu)
+        assert math.log(encadrement.borne_haute) == pytest.approx(attendu)
 
     def test_un_tour_unique_est_refuse(self):
-        with pytest.raises(ValueError, match="au moins deux"):
+        with pytest.raises(ValueError, match="au moins 2"):
             encadrer([1.5])
+
+    def test_des_rapports_rigoureusement_identiques_ne_concluent_pas(self):
+        """Échantillon dégénéré : l'horloge est trop grossière, elle ne mesure rien."""
+        assert not encadrer([1.0001] * 5).concluant
 
     @pytest.mark.parametrize("fautif", [0.0, -1.0, math.inf])
     def test_un_rapport_hors_du_domaine_du_logarithme_est_refuse(self, fautif):
@@ -204,17 +227,25 @@ class TestSensDuGain:
     def _lente() -> int:
         return sum(range(300_000))
 
+    @staticmethod
+    def _rapide() -> int:
+        # Un peu de travail plutôt que `pass` : sur une horloge grossière, une opération
+        # instantanée mesurerait 0,0 s, que le contrôle des durées refuse à juste titre.
+        return sum(range(100))
+
+    @staticmethod
+    def _gain_annonce(sortie: str) -> float:
+        annonce = sortie.splitlines()[-2]
+        assert "non concluant" not in annonce, annonce
+        return float(re.search(r"gain v2 / v1 : x([\d.]+)", annonce).group(1))
+
     def test_un_v2_plus_rapide_donne_un_gain_superieur_a_un(self, capsys):
-        comparer("épreuve", 1, lambda: None, self._lente, tours=3)
-        annonce = capsys.readouterr().out.splitlines()[-2]
-        assert "non concluant" not in annonce
-        assert float(annonce.split("x")[1].split()[0]) > 1.0
+        comparer("épreuve", 1, self._rapide, self._lente, tours=3)
+        assert self._gain_annonce(capsys.readouterr().out) > 1.0
 
     def test_un_v2_plus_lent_donne_un_gain_inferieur_a_un(self, capsys):
-        comparer("épreuve", 1, self._lente, lambda: None, tours=3)
-        annonce = capsys.readouterr().out.splitlines()[-2]
-        assert "non concluant" not in annonce
-        assert float(annonce.split("x")[1].split()[0]) < 1.0
+        comparer("épreuve", 1, self._lente, self._rapide, tours=3)
+        assert self._gain_annonce(capsys.readouterr().out) < 1.0
 
 
 class TestAnnonce:
@@ -222,12 +253,30 @@ class TestAnnonce:
 
     def test_un_gain_concluant_est_annonce_avec_son_intervalle(self):
         annonce = conclure(Encadrement(gain=2.5, borne_basse=2.1, borne_haute=2.9))
-        assert annonce == "gain v2 / v1 : x2.5   (x2.10 à x2.90 à 95 %)"
+        assert annonce == "gain v2 / v1 : x2.50   (x2.10 à x2.90 à 95 %)"
 
     def test_un_gain_non_concluant_n_est_pas_chiffre(self):
         annonce = conclure(Encadrement(gain=1.4, borne_basse=0.8, borne_haute=2.4))
         assert annonce == "gain v2 / v1 : non concluant — l'intervalle x0.80 à x2.40 contient 1"
         assert "x1.4" not in annonce
+
+    def test_un_petit_gain_concluant_n_est_pas_arrondi_a_l_unite(self):
+        """Afficher « x1.0 » pour un gain retenu de 3 % nierait ce qu'on vient d'établir."""
+        assert "x1.03" in conclure(Encadrement(gain=1.03, borne_basse=1.02, borne_haute=1.04))
+
+
+class TestReglagesRefuses:
+    """Les options de la ligne de commande sont contrôlées avant la première mesure."""
+
+    @pytest.mark.parametrize("tours", [1, 0, -3])
+    def test_moins_de_deux_tours_est_refuse_avant_d_avoir_rien_imprime(self, tours, capsys):
+        with pytest.raises(ValueError, match="au moins 2"):
+            executer(lignes=10, chemin_v1=pathlib.Path("introuvable"), tours=tours)
+        assert capsys.readouterr().out == ""
+
+    def test_un_nombre_de_lignes_nul_est_refuse_aussi(self):
+        with pytest.raises(ValueError, match="au moins une valeur"):
+            executer(lignes=0, chemin_v1=pathlib.Path("introuvable"), tours=5)
 
 
 class TestMesure:
