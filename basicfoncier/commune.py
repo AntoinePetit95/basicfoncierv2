@@ -14,11 +14,12 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from ._internal.appel import (
+    VALEUR_SEULE,
     SurInvalide,
+    aiguiller,
     en_colonne_arrow,
     en_dataframe,
     en_serie,
-    est_scalaire,
     exiger_meme_index,
     refuser_colonne_non_textuelle,
     signaler_valeurs_fautives,
@@ -131,7 +132,7 @@ def to_commune_et_arrondissement(
     """
     valider_option_invalide(invalide)
 
-    if est_scalaire(insee):
+    if aiguiller(insee) == VALEUR_SEULE:
         valide = _valider_texte(insee, invalide)
         return (pd.NA, pd.NA) if pd.isna(valide) else _separer_texte(valide)
 
@@ -183,7 +184,7 @@ def _appliquer(
     """Aiguille vers le chemin scalaire ou le chemin colonne, après validation."""
     valider_option_invalide(invalide)
 
-    if est_scalaire(insee):
+    if aiguiller(insee) == VALEUR_SEULE:
         valide = _valider_texte(insee, invalide)
         return pd.NA if pd.isna(valide) else sur_texte(valide)
 

@@ -15,10 +15,11 @@ import pyarrow.compute as pc
 
 from ._internal.appel import (
     NOMBRE_OU_COLONNE,
+    VALEUR_SEULE,
     SurInvalide,
+    aiguiller,
     en_colonne_arrow,
     en_serie,
-    est_scalaire,
     refuser_colonne_non_numerique,
     refuser_colonne_non_textuelle,
     signaler_valeurs_fautives,
@@ -69,7 +70,7 @@ def to_hectares(
     """
     valider_option_invalide(invalide)
 
-    if est_scalaire(superficie, NOMBRE_OU_COLONNE, _est_nombre):
+    if aiguiller(superficie, NOMBRE_OU_COLONNE, _est_nombre) == VALEUR_SEULE:
         metres_carres = _metres_carres_depuis_nombre(superficie, invalide)
         return pd.NA if pd.isna(metres_carres) else metres_carres / METRES_CARRES_PAR_HECTARE
 
@@ -94,7 +95,7 @@ def to_ha_a_ca(
     """
     valider_option_invalide(invalide)
 
-    if est_scalaire(superficie, NOMBRE_OU_COLONNE, _est_nombre):
+    if aiguiller(superficie, NOMBRE_OU_COLONNE, _est_nombre) == VALEUR_SEULE:
         metres_carres = _metres_carres_depuis_nombre(superficie, invalide)
         return pd.NA if pd.isna(metres_carres) else _formater_nombre(metres_carres)
 
@@ -119,7 +120,7 @@ def from_ha_a_ca(
     """
     valider_option_invalide(invalide)
 
-    if est_scalaire(superficie):
+    if aiguiller(superficie) == VALEUR_SEULE:
         return _lire_texte(superficie, invalide)
 
     return en_serie(_lire_colonne(superficie, invalide), superficie.index)
@@ -208,7 +209,14 @@ def _metres_carres_depuis_colonne(superficies: pd.Series, invalide: SurInvalide)
         return metres_carres
 
     if invalide == "erreur":
-        _signaler_colonne_negative(superficies, negatives)
+        # Sans rappel de format : une superficie négative est fautive par son signe et
+        # non par sa forme, et lui opposer le format attendu n'apprendrait rien.
+        signaler_valeurs_fautives(
+            SuperficieInvalide,
+            superficies,
+            negatives,
+            sujet="superficie(s) négative(s)",
+        )
 
     return pc.if_else(negatives, pa.scalar(None, type=pa.int64()), metres_carres)
 
@@ -222,36 +230,12 @@ def _lire_colonne(superficies: pd.Series, invalide: SurInvalide) -> pa.Array:
     illisibles = positions_illisibles(textes, metres_carres)
 
     if invalide == "erreur" and pc.any(illisibles).as_py():
-        _signaler_colonne_illisible(superficies, illisibles)
+        signaler_valeurs_fautives(
+            SuperficieInvalide,
+            superficies,
+            illisibles,
+            sujet="superficie(s) illisible(s)",
+            format_attendu=FORMAT_ATTENDU,
+        )
 
     return metres_carres
-
-
-# --------------------------------------------------------------------------------------
-# Messages
-# --------------------------------------------------------------------------------------
-
-
-def _signaler_colonne_negative(superficies: pd.Series, negatives: pa.Array) -> None:
-    """Lève une erreur nommant les superficies négatives et leur position.
-
-    Sans rappel de format : une superficie négative est fautive par son signe, pas par sa
-    forme, et lui opposer le format attendu n'apprendrait rien à l'appelant.
-    """
-    signaler_valeurs_fautives(
-        SuperficieInvalide,
-        superficies,
-        negatives,
-        sujet="superficie(s) négative(s)",
-    )
-
-
-def _signaler_colonne_illisible(superficies: pd.Series, illisibles: pa.Array) -> None:
-    """Lève une erreur nommant les superficies illisibles et leur position."""
-    signaler_valeurs_fautives(
-        SuperficieInvalide,
-        superficies,
-        illisibles,
-        sujet="superficie(s) illisible(s)",
-        format_attendu=FORMAT_ATTENDU,
-    )

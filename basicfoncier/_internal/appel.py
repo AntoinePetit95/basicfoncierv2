@@ -8,7 +8,7 @@ Les regrouper ici évite qu'elles divergent d'un module à l'autre.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from typing import Literal
+from typing import Literal, NoReturn
 
 import pandas as pd
 import pyarrow as pa
@@ -18,7 +18,7 @@ SurInvalide = Literal["erreur", "manquant"]
 OPTIONS_INVALIDE = ("erreur", "manquant")
 
 #: Nombre de valeurs fautives citées dans un message d'erreur portant sur une colonne.
-NOMBRE_EXEMPLES = 5
+_NOMBRE_EXEMPLES = 5
 
 #: Ce qu'annonce le message de refus quand l'entrée n'est ni une valeur seule ni une colonne.
 TEXTE_OU_COLONNE = "une chaîne ou une pandas.Series"
@@ -32,36 +32,48 @@ def valider_option_invalide(invalide: str) -> None:
         raise ValueError(f"invalide={invalide!r} est inconnu. Attendu : {attendu}.")
 
 
-def erreur_de_type(valeur: object, attendu: str) -> TypeError:
+def _erreur_de_type(valeur: object, attendu: str) -> TypeError:
     """Construit l'erreur signalant une entrée d'une nature inattendue."""
     return TypeError(f"attendu {attendu}, reçu {type(valeur).__name__}.")
+
+
+#: Les deux chemins qu'une fonction publique peut emprunter.
+VALEUR_SEULE = "valeur_seule"
+COLONNE = "colonne"
+
+Chemin = Literal["valeur_seule", "colonne"]
 
 
 def _est_texte(valeur: object) -> bool:
     return isinstance(valeur, str)
 
 
-def est_scalaire(
+def aiguiller(
     valeur: object,
     attendu: str = TEXTE_OU_COLONNE,
     admis: Callable[[object], bool] = _est_texte,
-) -> bool:
-    """Dit si l'appel porte sur une valeur seule plutôt que sur une colonne.
+) -> Chemin:
+    """Dit lequel des deux chemins une entrée doit emprunter, et refuse les autres.
 
-    Chaque fonction publique accepte les deux et rend le même genre qu'elle a reçu. Le
-    refus de ce qui n'est ni l'un ni l'autre est écrit **ici et nulle part ailleurs** :
-    huit fonctions le réécrivaient à la main, et deux d'entre elles interrogeaient la
-    colonne avant la valeur seule quand les six autres faisaient l'inverse.
+    Chaque fonction publique accepte une valeur seule ou une colonne, et rend le même
+    genre qu'elle a reçu. Le refus de ce qui n'est ni l'un ni l'autre est écrit **ici et
+    nulle part ailleurs** : huit fonctions le réécrivaient à la main.
+
+    Le chemin est **nommé** plutôt que rendu sous forme de booléen : au site d'appel,
+    ``if aiguiller(x) == VALEUR_SEULE`` dit que l'autre branche traite une colonne, là où
+    un ``else`` laisserait croire qu'elle traite tout le reste — alors que le reste a été
+    refusé ici.
 
     :param attendu: ce que le message de refus annonce comme entrée acceptable
     :param admis: ce qui compte comme valeur seule. Le défaut est le texte ; une
         superficie, elle, est un nombre — et pas n'importe lequel, voir l'appelant.
+    :raises TypeError: l'entrée n'est ni une valeur seule ni une colonne
     """
     if isinstance(valeur, pd.Series):
-        return False
+        return COLONNE
     if admis(valeur):
-        return True
-    raise erreur_de_type(valeur, attendu)
+        return VALEUR_SEULE
+    raise _erreur_de_type(valeur, attendu)
 
 
 #: Natures de contenu acceptables pour une colonne d'objets censée porter du texte.
@@ -156,7 +168,7 @@ def en_dataframe(
     return parts
 
 
-def exemples_fautifs(valeurs: pd.Series, invalides: pa.Array) -> pd.Series:
+def _exemples_fautifs(valeurs: pd.Series, invalides: pa.Array) -> pd.Series:
     """Extrait quelques valeurs fautives, avec leur position, pour un message d'erreur."""
     masque = pd.Series(invalides.to_numpy(zero_copy_only=False), index=valeurs.index)
     return valeurs[masque]
@@ -170,7 +182,7 @@ def signaler_valeurs_fautives(
     sujet: str,
     format_attendu: str | None = None,
     tolerance_possible: bool = True,
-) -> None:
+) -> NoReturn:
     """Lève l'erreur métier nommant les valeurs fautives, leur nombre et leur position.
 
     Un message utile dit trois choses : **combien** de lignes sont en cause sur le total,
@@ -183,8 +195,8 @@ def signaler_valeurs_fautives(
     :param tolerance_possible: faux quand la fonction appelante n'offre pas d'option
         ``invalide`` — conseiller de la passer enverrait alors l'appelant dans le mur
     """
-    fautifs = exemples_fautifs(valeurs, fautives)
-    exemples = fautifs.head(NOMBRE_EXEMPLES)
+    fautifs = _exemples_fautifs(valeurs, fautives)
+    exemples = fautifs.head(_NOMBRE_EXEMPLES)
     rappel = f"Attendu : {format_attendu}. " if format_attendu is not None else ""
     conseil = (
         " Passez invalide='manquant' pour les remplacer par des valeurs manquantes."

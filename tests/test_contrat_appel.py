@@ -16,6 +16,9 @@ import pandas as pd
 import pytest
 
 from basicfoncier import commune, ref_cadastrale, superficie
+from basicfoncier._internal.insee import FORMAT_ATTENDU as FORMAT_INSEE
+from basicfoncier._internal.motifs import FORMAT_ATTENDU as FORMAT_REFERENCE
+from basicfoncier._internal.unites import FORMAT_ATTENDU as FORMAT_SUPERFICIE
 
 #: Fonctions à un argument prenant une valeur seule ou une colonne, plus l'option
 #: ``invalide``. Pour chacune : une entrée valide en texte, et la même en colonne.
@@ -160,9 +163,20 @@ class TestAssemblages:
 
     @pytest.mark.parametrize(("fonction", "champs"), ASSEMBLAGES)
     def test_le_message_nomme_chaque_champ_et_sa_nature(self, fonction, champs):
+        """La clause « Reçu : … » doit citer chaque champ avec le type reçu.
+
+        Contraint sur la clause elle-même : ``match="Series"`` serait satisfait par la
+        phrase d'exigence, qui contient déjà « pandas.Series », sans jamais atteindre ce
+        que ce test prétend éprouver.
+        """
         melange = (pd.Series([champs[0]]), *champs[1:])
-        with pytest.raises(TypeError, match="Series"):
+        with pytest.raises(TypeError) as leve:
             fonction(*melange)
+
+        message = str(leve.value)
+        assert "Reçu : " in message
+        assert "insee=Series" in message or "departement=Series" in message
+        assert "=str" in message
 
     @pytest.mark.parametrize(("fonction", "champs"), ASSEMBLAGES)
     def test_refuse_des_colonnes_mal_alignees(self, fonction, champs):
@@ -179,3 +193,93 @@ class TestAssemblages:
     def test_assemble_des_colonnes_en_colonne(self, fonction, champs):
         colonnes = [pd.Series([valeur]) for valeur in champs]
         assert isinstance(fonction(*colonnes), pd.Series)
+
+
+class TestTexteDesMessages:
+    """Les messages d'erreur métier, éprouvés au caractère près.
+
+    La refonte a réuni cinq messages en un patron unique, et lui a donné deux degrés de
+    liberté qui n'existaient pas — ``format_attendu`` facultatif et ``tolerance_possible``.
+    Une revue a montré par mutation que rien ne les gardait : supprimer la clause
+    « Attendu », changer sa ponctuation, retirer le conseil ou intervertir le nombre de
+    fautifs et le total laissait la suite entièrement verte.
+
+    Ces tests comparent le message entier, pas un fragment. Ils sont volontairement
+    rigides : c'est leur raison d'être. Repassés à la mutation, ils détectent désormais
+    les quatre atteintes au patron.
+
+    Une cinquième mutation reste indétectable — inverser l'ordre du dispatch dans
+    ``aiguiller`` — et le restera : c'est un mutant **équivalent**. Aucun objet n'est à la
+    fois une ``pd.Series`` et une valeur seule admise ; l'ordre des deux tests n'a donc
+    aucun effet observable. Vérifié sur 301 formes d'entrée, y compris scalaires numpy,
+    tableau à zéro dimension, ``Decimal``, ``Fraction`` et sous-classes des deux types.
+    """
+
+    CONSEIL = " Passez invalide='manquant' pour les remplacer par des valeurs manquantes."
+
+    def _message(self, appel) -> str:
+        # La classe d'erreur varie d'une famille à l'autre ; ce qui est éprouvé ici est le
+        # texte du message, que chaque test compare ensuite en entier.
+        with pytest.raises(Exception) as leve:
+            appel()
+        return str(leve.value)
+
+    def test_code_insee_invalide(self):
+        """Le message entier, assemblé à partir du seul format attendu.
+
+        Le texte du format vient de la bibliothèque : ce qui est éprouvé ici est le
+        **patron** — l'ordre des trois clauses, leurs séparateurs et leur ponctuation —
+        et non la formulation du domaine, qui a ses propres tests.
+        """
+        message = self._message(lambda: commune.to_departement(pd.Series(["78048", "fautif"])))
+        assert message == (
+            f"1 code(s) Insee invalide(s) sur 2. Attendu : {FORMAT_INSEE}. "
+            f"Reçu, aux positions [1] : ['fautif'].{self.CONSEIL}"
+        )
+
+    def test_code_departement_invalide_ne_conseille_pas_l_option(self):
+        """``insee_from_parts`` n'a pas d'option ``invalide`` : la conseiller enverrait
+        l'appelant dans le mur."""
+        message = self._message(
+            lambda: commune.insee_from_parts(pd.Series(["7X"]), pd.Series(["048"]))
+        )
+        assert message.startswith("1 code(s) département invalide(s) sur 1. Attendu : ")
+        assert message.endswith("Reçu, aux positions [0] : ['7X'].")
+        assert "invalide='manquant'" not in message
+
+    def test_reference_cadastrale_invalide(self):
+        message = self._message(
+            lambda: ref_cadastrale.to_parts(pd.Series(["78048000AB0011", "fautive"]))
+        )
+        assert message == (
+            f"1 référence(s) cadastrale(s) invalide(s) sur 2. Attendu : {FORMAT_REFERENCE}. "
+            f"Reçu, aux positions [1] : ['fautive'].{self.CONSEIL}"
+        )
+
+    def test_superficie_negative_ne_rappelle_aucun_format(self):
+        """Une superficie négative est fautive par son signe, pas par sa forme."""
+        message = self._message(lambda: superficie.to_hectares(pd.Series([100, -5])))
+        assert message == (
+            "1 superficie(s) négative(s) sur 2. Reçu, aux positions [1] : [-5]." + self.CONSEIL
+        )
+        assert "Attendu" not in message
+
+    def test_superficie_illisible(self):
+        message = self._message(
+            lambda: superficie.from_ha_a_ca(pd.Series(["1 ha 13 a 20 ca", "fautive"]))
+        )
+        assert message == (
+            f"1 superficie(s) illisible(s) sur 2. Attendu : {FORMAT_SUPERFICIE}. "
+            f"Reçu, aux positions [1] : ['fautive'].{self.CONSEIL}"
+        )
+
+    def test_le_compte_precede_le_total(self):
+        """Deux nombres se suivent dans la phrase ; les intervertir la rendrait fausse
+        sans qu'aucun test de sous-chaîne ne s'en aperçoive."""
+        message = self._message(lambda: commune.to_departement(pd.Series(["a", "b", "c", "78048"])))
+        assert message.startswith("3 code(s) Insee invalide(s) sur 4.")
+
+    def test_au_plus_cinq_exemples_sont_cites(self):
+        message = self._message(lambda: commune.to_departement(pd.Series(["x"] * 9)))
+        assert message.startswith("9 code(s) Insee invalide(s) sur 9.")
+        assert "positions [0, 1, 2, 3, 4] :" in message

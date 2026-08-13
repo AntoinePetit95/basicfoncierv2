@@ -17,11 +17,12 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from ._internal.appel import (
+    VALEUR_SEULE,
     SurInvalide,
+    aiguiller,
     en_colonne_arrow,
     en_dataframe,
     en_serie,
-    est_scalaire,
     exiger_meme_index,
     refuser_colonne_non_textuelle,
     signaler_valeurs_fautives,
@@ -76,7 +77,7 @@ def to_idu(
     """
     valider_option_invalide(invalide)
 
-    if est_scalaire(ref):
+    if aiguiller(ref) == VALEUR_SEULE:
         return _idu_depuis_texte(ref, invalide)
 
     return en_serie(_canoniques_depuis_colonne(ref, invalide), ref.index)
@@ -100,7 +101,7 @@ def to_short_id(
     """
     valider_option_invalide(invalide)
 
-    if est_scalaire(ref):
+    if aiguiller(ref) == VALEUR_SEULE:
         idu = _idu_depuis_texte(ref, invalide)
         return idu if pd.isna(idu) else _raccourcir_texte(idu)
 
@@ -136,7 +137,7 @@ def to_parts(
     """
     valider_option_invalide(invalide)
 
-    if est_scalaire(ref):
+    if aiguiller(ref) == VALEUR_SEULE:
         idu = _idu_depuis_texte(ref, invalide)
         return (pd.NA,) * 4 if pd.isna(idu) else _decouper_texte(idu)
 
@@ -250,7 +251,13 @@ def _canoniques_depuis_colonne(refs: pd.Series, invalide: SurInvalide) -> pa.Arr
     invalides = positions_invalides(valeurs, canoniques)
 
     if invalide == "erreur" and pc.any(invalides).as_py():
-        _signaler_colonne_invalide(refs, invalides)
+        signaler_valeurs_fautives(
+            ReferenceCadastraleInvalide,
+            refs,
+            invalides,
+            sujet="référence(s) cadastrale(s) invalide(s)",
+            format_attendu=FORMAT_ATTENDU,
+        )
 
     return canoniques
 
@@ -307,19 +314,3 @@ def _assembler_colonnes(parties: dict[str, pd.Series]) -> pd.Series:
         for champ in CHAMPS
     ]
     return en_serie(pc.binary_join_element_wise(*completees, ""), index)
-
-
-# --------------------------------------------------------------------------------------
-# Contrôles d'appel et messages
-# --------------------------------------------------------------------------------------
-
-
-def _signaler_colonne_invalide(refs: pd.Series, invalides: pa.Array) -> None:
-    """Lève une erreur nommant le nombre de références fautives et quelques exemples."""
-    signaler_valeurs_fautives(
-        ReferenceCadastraleInvalide,
-        refs,
-        invalides,
-        sujet="référence(s) cadastrale(s) invalide(s)",
-        format_attendu=FORMAT_ATTENDU,
-    )

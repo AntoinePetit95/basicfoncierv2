@@ -4,12 +4,15 @@
 
 **Demande :** repasser sur tout le code et voir si l'architecture gagnerait à être simplifiée.
 **Fait :**
-- Quatre formes qui étaient recopiées d'un module à l'autre remontent dans `_internal/appel.py` : la répartition valeur seule / colonne (**8 copies**, dont deux qui interrogeaient la colonne en premier quand six faisaient l'inverse), le patron de message d'erreur (**5 copies**), l'assemblage d'un `DataFrame` à plusieurs champs (2 copies mot pour mot) et le contrôle d'alignement des index (2 copies).
-- `tests/test_contrat_appel.py` : le contrat d'appel est désormais éprouvé sur les **douze** fonctions publiques d'un coup, là où chaque famille n'éprouvait qu'une partie des siennes. 629 tests au total, contre 488.
+- Quatre formes qui étaient recopiées d'un module à l'autre remontent dans `_internal/appel.py` : la répartition valeur seule / colonne (**8 copies**), le patron de message d'erreur (**5 copies**), l'assemblage d'un `DataFrame` à plusieurs champs (2 copies mot pour mot) et le contrôle d'alignement des index (2 copies).
+- `tests/test_contrat_appel.py` : le contrat éprouvé sur les **douze** fonctions publiques d'un coup, et le texte des cinq messages métier éprouvé au caractère près. 639 tests au total, contre 488.
 
-**Fichiers :** `basicfoncier/{commune,ref_cadastrale,superficie}.py`, `basicfoncier/_internal/appel.py`, `tests/test_contrat_appel.py`, `docs/CHANTIERS.md`
-**Vérifié par :** `pytest` → 629 passed, **les 488 tests existants inchangés** ; `ruff check .` et `ruff format --check .` → propres ; non-régression établie structurellement — `git diff` ne touche **aucun** noyau Arrow, le travail par ligne est identique au bit près.
-**À savoir :** deux points du plan ont fondu à la lecture du code — `_CONSEIL_TEXTE` n'est pas dupliqué (seul le commentaire au-dessus l'est) et `arrow_commun.py` est bien partagé. Consigné dans `CHANTIERS.md` plutôt que corrigé par du remaniement cosmétique. Et le banc d'essai s'est révélé incapable de trancher : entrelacé, son plancher de bruit est de ±10 % et les écarts changent de signe d'une exécution à l'autre. Deux exécutions séparées annonçaient jusqu'à +52 % de perte, l'entrelacement montre du bruit. Un chantier est ouvert pour le rendre mesurable.
+**Fichiers :** `basicfoncier/{commune,ref_cadastrale,superficie}.py`, `basicfoncier/_internal/appel.py`, `tests/test_contrat_appel.py`, `CHANGELOG.md`, `docs/CHANTIERS.md`
+**Vérifié par :** `pytest` → 639 passed, **les 488 tests existants inchangés** ; `ruff` propre ; la revue a comparé **301 scénarios** exécutés contre l'ancien code et le nouveau — sortie identique octet pour octet ; non-régression de débit établie structurellement, `git diff` ne touchant aucun noyau Arrow.
+**À savoir :**
+- **Ma justification de non-régression des messages était fausse.** J'avais écrit que « les tests existants, qui les inspectent, passent inchangés » : ils ne les inspectent pas. La revue l'a montré en supprimant purement et simplement la clause « Attendu » du patron — 629 tests verts. La conclusion était juste, la preuve avancée ne valait rien. Cinq mutations sont désormais posées et quatre sont détectées ; la cinquième est un mutant équivalent, expliqué dans le fichier de test.
+- Deux points du plan ont fondu à la lecture du code — `_CONSEIL_TEXTE` n'est pas dupliqué, `arrow_commun.py` est bien partagé. Consigné dans `CHANTIERS.md` plutôt que corrigé par du remaniement cosmétique.
+- Le banc d'essai s'est révélé incapable de trancher : entrelacé, son plancher de bruit est de ±10 % et les écarts changent de signe d'une exécution à l'autre. Deux exécutions séparées annonçaient jusqu'à +52 % de perte ; l'entrelacement montre du bruit. Chantier ouvert.
 
 ## 2026-08-12 — Campagne de mesure : cinq pistes de performance, une retenue
 
