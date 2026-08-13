@@ -61,6 +61,30 @@ ref_parcelle_to_short_id("972150000C0302") → ValueError: invalid literal for i
 3. Aucun `except:` nu. Une donnée invalide donne une valeur manquante **explicitement demandée par l'appelant**, jamais un silence par défaut.
 4. Signalé dans [MIGRATION.md](MIGRATION.md) : un utilisateur du v1 peut avoir des colonnes entièrement à `NA` sans le savoir.
 
+## Défauts ouverts
+
+### 2026-08-12 — Les colonnes `category` sont refusées
+
+**Symptôme :** une colonne au dtype `category` — la forme pandas d'un encodage par dictionnaire, et celle que produit la lecture d'un Parquet encodé — est rejetée par la validation de type.
+
+**Reproduction :**
+
+```python
+commune.to_departement(codes.astype("category"))
+# TypeError: la colonne de codes Insee doit contenir des chaînes,
+#            reçu une colonne de type category.
+superficie.to_ha_a_ca(contenances.astype("category"))
+# TypeError: la colonne de superficies doit contenir des nombres, ...
+```
+
+`str` et `string[pyarrow]` passent sans difficulté ; seul `category` est refusé.
+
+**Portée :** aucune donnée fausse produite — le refus est franc et le message est clair. C'est une gêne d'usage, pas une erreur de calcul. L'appelant peut contourner par `.astype(str)`, au prix d'une conversion qui défait précisément l'encodage.
+
+**Ce qui le rend gênant :** ces colonnes sont celles où la bibliothèque serait la plus rapide. Sur une colonne de codes Insee déjà encodée, le calcul mesuré passe de **185,9 ms à 11,1 ms** — colonne « Entrée déjà encodée » du tableau de [DECISIONS.md](DECISIONS.md), entrée du 2026-08-12. La bibliothèque refuse donc son meilleur cas.
+
+**Traitement prévu :** unité 2 du chantier 1.1.0, voir [CHANTIERS.md](CHANTIERS.md).
+
 ## Questions tranchées et défauts corrigés dans le v2
 
 ### 2026-08-09 — Tranché : les codes commune de Paris et Lyon du v1 sont faux

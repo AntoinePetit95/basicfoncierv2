@@ -1,5 +1,16 @@
 # Journal
 
+## 2026-08-12 — Campagne de mesure : cinq pistes de performance, une retenue
+
+**Demande :** chercher d'autres leviers que le threading — Cython, mise en cache — puis cadrer celui qui est retenu.
+**Fait :**
+- Cinq pistes mesurées sur parcelles DGFiP réelles, une retenue : calculer sur les valeurs distinctes, par plages ou par dictionnaire selon la forme de la colonne. Détail chiffré et contreparties dans `DECISIONS.md`.
+- `docs/CHANTIERS.md` ouvert — décidé mais pas fait, reste à décider, décisions prises seul — et déclaré en §3 de `CLAUDE.md`. Défaut des colonnes `category` consigné dans `BUGS.md`.
+
+**Fichiers :** `docs/{DECISIONS,BUGS,CHANTIERS,JOURNAL}.md`, `CLAUDE.md` (§3 seulement)
+**Vérifié par :** `pytest` → 488 passed, `ruff check .` → All checks passed ; mesures entrelacées, neuf tours, médianes, sur données réelles jamais sur le générateur ; chaque prototype confronté à l'implémentation en place avant d'être chronométré.
+**À savoir :** trois résultats contre-intuitifs, tous consignés dans `DECISIONS.md` — le noyau fusionné en numpy ne rend que x1,40 là où je pariais un ordre de grandeur ; la sonde de cardinalité doit lire une **saturation** et non un taux ; et ma première campagne, non entrelacée, annonçait x13,4 au lieu de x10,0 parce qu'elle chronométrait sa référence deux fois. La revue l'a trouvée par une division. Aucun code de la bibliothèque modifié.
+
 ## 2026-08-10 — Revue de l'écriture filtrée : sept corrections, aucune sur le calcul
 
 **Demande :** respecter la boucle plan → mise en œuvre → revue → correction → fusion.

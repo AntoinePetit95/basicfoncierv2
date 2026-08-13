@@ -32,8 +32,15 @@ basicfoncier/   ref_cadastrale.py · superficie.py · commune.py
   _internal/      implémentations vectorisées, non publiques
 tests/            un fichier de test par module du paquet
 benchmarks/       mesures de débit, critère de succès des tâches « vitesse »
-docs/             JOURNAL · BUGS · DECISIONS · MIGRATION · VOCABULAIRE
+docs/             JOURNAL · BUGS · DECISIONS · CHANTIERS · MIGRATION · VOCABULAIRE
 ```
+
+`docs/CHANTIERS.md` est propre à ce dépôt — il ne fait pas partie du socle EF, qui n'en
+prévoit que trois. Il porte ce qui est **décidé mais pas fait**, ce qui **reste à
+décider** (chaque entrée avec sa recommandation *et* ce qui la déciderait), et les
+**décisions prises seul** en mode autonome, consignées pour pouvoir être contredites.
+Une entrée le quitte quand elle est faite — elle passe au `JOURNAL` — ou tranchée — elle
+passe aux `DECISIONS`. Ce fichier ne grossit pas : il se vide.
 
 ---
 
