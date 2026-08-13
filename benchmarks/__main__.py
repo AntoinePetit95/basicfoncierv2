@@ -14,7 +14,6 @@ import importlib
 import importlib.util
 import string
 import sys
-import time
 from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
@@ -25,6 +24,14 @@ import pandas as pd
 from basicfoncier.commune import to_code_commune, to_commune_et_arrondissement, to_departement
 from basicfoncier.ref_cadastrale import to_idu, to_parts, to_short_id
 from basicfoncier.superficie import from_ha_a_ca, to_ha_a_ca, to_hectares
+from benchmarks.mesure import (
+    REPETITIONS,
+    Mesure,
+    est_concluant,
+    mesurer_ensemble,
+    rapports_par_tour,
+    resumer,
+)
 
 CHEMIN_V1_PAR_DEFAUT = Path(__file__).resolve().parents[2] / "basicfoncier"
 
@@ -32,8 +39,10 @@ CHEMIN_V1_PAR_DEFAUT = Path(__file__).resolve().parents[2] / "basicfoncier"
 #: qui porte désormais le même nom.
 ALIAS_V1 = "basicfoncier_v1"
 LIGNES_PAR_DEFAUT = 1_000_000
-REPETITIONS = 3
 DEPARTEMENTS_ALSACE_MOSELLE = ("57", "67", "68")
+
+#: Nom donné à la variante lorsqu'elle est mesurée seule, faute de v1 à lui opposer.
+SEULE = "seule"
 
 # Distribution des contenances cadastrales, ajustée sur 837 531 parcelles réelles
 # (fichiers des parcelles DGFiP, situation 2025, quatre départements).
@@ -161,25 +170,23 @@ def _refuser_nombre_nul(nombre: int) -> None:
 # --------------------------------------------------------------------------------------
 
 
-def mesurer(operation: Callable[[], object], repetitions: int = REPETITIONS) -> float:
-    """Renvoie la meilleure durée observée, en secondes.
-
-    Le minimum plutôt que la moyenne : il approche le coût réel du calcul, là où la
-    moyenne mesure surtout le bruit de la machine.
-    """
-    durees = []
-    for _ in range(repetitions):
-        depart = time.perf_counter()
-        operation()
-        durees.append(time.perf_counter() - depart)
-    return min(durees)
+def rapporter(nom: str, lignes: int, mesure: Mesure) -> None:
+    """Affiche une ligne de résultat : durée médiane, débit, et précision de la mesure."""
+    debit = lignes / mesure.mediane
+    print(
+        f"  {nom:<34} {mesure.mediane:8.3f} s   {debit:14,.0f} lignes/s"
+        f"   ±{mesure.dispersion:3.0%}".replace(",", " ")
+    )
 
 
-def rapporter(nom: str, lignes: int, duree: float) -> float:
-    """Affiche une ligne de résultat et renvoie le débit en lignes par seconde."""
-    debit = lignes / duree
-    print(f"  {nom:<34} {duree:8.3f} s   {debit:14,.0f} lignes/s".replace(",", " "))
-    return debit
+def conclure(rapports: Mesure) -> str:
+    """Formule le rapport v2 / v1, ou dit qu'il n'y a pas de rapport à annoncer."""
+    if not est_concluant(rapports):
+        return (
+            f"rapport v2 / v1 : non concluant — les tours donnent x{rapports.minimum:.1f} "
+            f"à x{rapports.maximum:.1f}, l'ordre s'inverse"
+        )
+    return f"rapport v2 / v1 : x{rapports.mediane:.1f}   (±{rapports.dispersion:.0%})"
 
 
 def comparer(
@@ -188,12 +195,17 @@ def comparer(
     operation_v2: Callable[[], object],
     operation_v1: Callable[[], object] | None,
 ) -> None:
-    """Mesure une opération du v2, puis son équivalent v1 s'il existe."""
-    debit_v2 = rapporter(f"v2  {intitule}", lignes, mesurer(operation_v2))
+    """Mesure une opération du v2 et son équivalent v1 entrelacés, puis les compare."""
     if operation_v1 is None:
+        durees = mesurer_ensemble({SEULE: operation_v2})
+        rapporter(f"v2  {intitule}", lignes, resumer(durees[SEULE]))
         return
-    debit_v1 = rapporter(f"v1  {intitule}", lignes, mesurer(operation_v1))
-    print(f"      rapport v2 / v1 : x{debit_v2 / debit_v1:.1f}\n")
+
+    durees = mesurer_ensemble({"v2": operation_v2, "v1": operation_v1})
+    rapporter(f"v2  {intitule}", lignes, resumer(durees["v2"]))
+    rapporter(f"v1  {intitule}", lignes, resumer(durees["v1"]))
+    rapports = resumer(rapports_par_tour(durees["v1"], durees["v2"]))
+    print(f"      {conclure(rapports)}\n")
 
 
 # --------------------------------------------------------------------------------------
@@ -271,8 +283,8 @@ def mesurer_references(lignes: int, v1: SimpleNamespace | None) -> None:
         lambda: to_parts(refs),
         None if v1 is None else lambda: v1.vectorisees.ref_parcelle_to_parts(brutes),
     )
-    rapporter("v2  forme idu", lignes, mesurer(lambda: to_idu(refs)))
-    rapporter("v2  identifiant court", lignes, mesurer(lambda: to_short_id(refs)))
+    comparer("forme idu", lignes, lambda: to_idu(refs), None)
+    comparer("identifiant court", lignes, lambda: to_short_id(refs), None)
     print(
         "      les équivalents v1 renvoient une valeur fausse ou lèvent une exception\n"
         "      (docs/BUGS.md) : les comparer n'aurait pas de sens.\n"
@@ -335,7 +347,8 @@ def mesurer_communes(lignes: int, v1: SimpleNamespace | None) -> None:
 
 def executer(lignes: int, chemin_v1: Path) -> None:
     """Lance toutes les mesures et affiche le rapport."""
-    print(f"{lignes:,} lignes, meilleur de {REPETITIONS}\n".replace(",", " "))
+    nombre = f"{lignes:,}".replace(",", " ")
+    print(f"{nombre} lignes, médiane de {REPETITIONS} tours entrelacés ; ± est l'étendue\n")
 
     v1 = charger_v1(chemin_v1)
     if v1 is None:

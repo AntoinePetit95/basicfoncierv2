@@ -1,5 +1,16 @@
 # Journal
 
+## 2026-08-13 — Le banc d'essai apparie ses tours et refuse de conclure sans preuve
+
+**Demande :** rendre le banc d'essai capable de mesurer un écart de 5 %.
+**Fait :**
+- Les variantes sont chronométrées **à tour de rôle dans une même boucle**, cinq tours après un tour de chauffe non compté, et le rapport se calcule **tour par tour** : un ralentissement commun s'annule au lieu de fausser le résultat.
+- `benchmarks/mesure.py` sépare le résumé du chronomètre ; `tests/test_banc_d_essai.py` l'éprouve sur des durées injectées, le banc d'essai n'ayant jusqu'ici aucun test.
+
+**Fichiers :** `benchmarks/{mesure,__main__}.py`, `tests/test_banc_d_essai.py`, `docs/{CHANTIERS,JOURNAL}.md`, `CHANGELOG.md`
+**Vérifié par :** `pytest` → 658 passed, les 636 existants inchangés ; `ruff` propre ; `python -m benchmarks --lignes 1000000` conclut sur les huit comparaisons, x1,4 à x26.
+**À savoir :** comparer les médianes de chaque variante, comme le prévoyait le plan, ne suffisait pas — les à-coups frappent les deux variantes du **même** tour et gonflent l'étendue à ±150 % sans toucher au rapport. C'est l'appariement, pas la médiane, qui rend l'entrelacement utile.
+
 ## 2026-08-13 — Préserver le code du v1 avant que son dépôt disparaisse
 
 **Demande :** avancer seul sur les chantiers ouverts ; celui-ci d'abord, seul à avoir une contrainte de temps.

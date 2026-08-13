@@ -18,6 +18,11 @@ versionnage [SemVer](https://semver.org/lang/fr/).
   plus qu'en un exemplaire, dans `_internal/appel.py`. **Aucun changement de
   comportement** — messages d'erreur identiques au caractère près, vérifiés sur
   301 scénarios face à la version précédente.
+- Le banc d'essai chronomètre les variantes **entrelacées** et calcule leur rapport tour
+  par tour, au lieu de mesurer l'une puis l'autre. Il annonce sa propre précision et
+  **refuse de conclure** quand l'ordre s'inverse d'un tour à l'autre. Les rapports de
+  débit publiés avant cette correction mêlent l'écart entre les implémentations à la
+  dérive de la machine entre deux moments.
 - Le générateur du banc d'essai suit désormais la distribution cadastrale réelle, ajustée
   sur 837 531 contenances de la DGFiP. Il tirait jusqu'ici une loi uniforme, qui produit
   99,5 % de parcelles d'au moins un hectare contre 21,4 % dans la réalité. Corse et
